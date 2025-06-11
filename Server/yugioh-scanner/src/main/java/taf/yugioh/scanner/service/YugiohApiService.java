@@ -3,20 +3,23 @@ package taf.yugioh.scanner.service;
 import taf.yugioh.scanner.model.CardResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.util.Set;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class YugiohApiService {
 
     @Value("${yugioh.api.base.url:https://db.ygoprodeck.com/api/v7/cardinfo.php}")
     private String yugiohApiBaseUrl;
+
+    @Autowired
+    private DatabaseImageService databaseImageService;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -27,49 +30,62 @@ public class YugiohApiService {
     }
 
     public CardResponse getCardByName(String cardName) {
-        // Try the original name first
-        CardResponse result = searchCard(cardName);
+        // First, try to get from database
+        Optional<CardResponse> cachedCard = findCardInDatabase(cardName);
+        if (cachedCard.isPresent()) {
+            System.out.println("Found card in database: " + cardName);
+            return cachedCard.get();
+        }
+
+        // If not in database, search API with different variations
+        CardResponse result = searchCardFromApi(cardName);
         if (result != null) {
+            // Save to database and download images
+            saveCardToDatabase(result);
             return result;
         }
 
-        // If not found, try different case variations
+        // Try different case variations
         String[] variations = {
-            cardName.toLowerCase(),  // all lowercase
-            toTitleCase(cardName),   // proper title case
-            cardName.toUpperCase(),  // all uppercase
-            cardName.trim()          // just trimmed
+            cardName.toLowerCase(),
+            toTitleCase(cardName),
+            cardName.toUpperCase(),
+            cardName.trim()
         };
 
         for (String variation : variations) {
-            if (!variation.equals(cardName)) { // Don't try the same name twice
-                result = searchCard(variation);
+            if (!variation.equals(cardName)) {
+                result = searchCardFromApi(variation);
                 if (result != null) {
+                    saveCardToDatabase(result);
                     return result;
                 }
             }
         }
 
-        return null; // Card not found with any variation
+        return null; // Card not found
     }
 
-    private CardResponse searchCard(String cardName) {
+    private Optional<CardResponse> findCardInDatabase(String cardName) {
+        // This is a simple implementation - you might want to improve the search logic
+        // For now, we'll skip database search by name as it would require more complex matching
+        return Optional.empty();
+    }
+
+    private CardResponse searchCardFromApi(String cardName) {
         try {
-            // Build the API URL with card name parameter
             String url = UriComponentsBuilder.fromUriString(yugiohApiBaseUrl)
                     .queryParam("name", cardName)
-                    .queryParam("misc", "yes") // Include additional info
+                    .queryParam("misc", "yes")
                     .build()
                     .toUriString();
 
-            // Make API call
             String response = restTemplate.getForObject(url, String.class);
             
             if (response == null) {
                 return null;
             }
 
-            // Parse JSON response
             JsonNode rootNode = objectMapper.readTree(response);
             JsonNode dataNode = rootNode.get("data");
             
@@ -77,15 +93,37 @@ public class YugiohApiService {
                 return null;
             }
 
-            // Get the first card (exact match should be first)
             JsonNode cardNode = dataNode.get(0);
-            
             return parseCardFromJson(cardNode);
 
         } catch (Exception e) {
-            // Log but don't throw - this allows trying other variations
             System.err.println("Error fetching card data for: " + cardName + " - " + e.getMessage());
             return null;
+        }
+    }
+
+    private void saveCardToDatabase(CardResponse cardResponse) {
+        try {
+            // Save card information to database
+            databaseImageService.saveCardToDatabase(cardResponse);
+
+            // Download and save images if they exist
+            if (cardResponse.getImageUrl() != null && cardResponse.getImageUrlSmall() != null) {
+                String localImageUrl = databaseImageService.downloadAndStoreImage(
+                    cardResponse.getImageUrl(),
+                    cardResponse.getImageUrlSmall(),
+                    cardResponse.getId()
+                );
+
+                if (localImageUrl != null) {
+                    // Update the response with local URLs
+                    cardResponse.setImageUrl(databaseImageService.buildLocalImageUrl(cardResponse.getId(), false));
+                    cardResponse.setImageUrlSmall(databaseImageService.buildLocalImageUrl(cardResponse.getId(), true));
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error saving card to database: " + e.getMessage());
         }
     }
 
@@ -97,7 +135,6 @@ public class YugiohApiService {
         String[] words = input.toLowerCase().split("\\s+");
         StringBuilder titleCase = new StringBuilder();
 
-        // Words that should remain lowercase unless they're the first word
         Set<String> smallWords = Set.of("the", "of", "and", "or", "but", "in", "on", "at", "to", "for", "from", "with", "by");
 
         for (int i = 0; i < words.length; i++) {
@@ -107,11 +144,9 @@ public class YugiohApiService {
 
             String word = words[i];
             if (i == 0 || !smallWords.contains(word)) {
-                // Capitalize first letter, rest lowercase
                 titleCase.append(Character.toUpperCase(word.charAt(0)))
                          .append(word.substring(1));
             } else {
-                // Keep small words lowercase unless they're first
                 titleCase.append(word);
             }
         }
@@ -145,7 +180,7 @@ public class YugiohApiService {
             card.setAttribute(cardNode.get("attribute").asText());
         }
         
-        // Get card images
+        // Get card images - store external URLs for now, will be replaced with local URLs after download
         JsonNode imagesNode = cardNode.get("card_images");
         if (imagesNode != null && imagesNode.isArray() && imagesNode.size() > 0) {
             JsonNode firstImage = imagesNode.get(0);
@@ -167,4 +202,43 @@ public class YugiohApiService {
 
         return card;
     }
+
+    /**
+     * Get card by ID - first checks database, then API if needed
+     */
+    public CardResponse getCardById(Long cardId) {
+        // Try database first
+        Optional<CardResponse> cachedCard = databaseImageService.getCardFromDatabase(cardId);
+        if (cachedCard.isPresent()) {
+            return cachedCard.get();
+        }
+
+        // If not in database, search API
+        try {
+            String url = UriComponentsBuilder.fromUriString(yugiohApiBaseUrl)
+                    .queryParam("id", cardId)
+                    .queryParam("misc", "yes")
+                    .build()
+                    .toUriString();
+
+            String response = restTemplate.getForObject(url, String.class);
+            
+            if (response != null) {
+                JsonNode rootNode = objectMapper.readTree(response);
+                JsonNode dataNode = rootNode.get("data");
+                
+                if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
+                    CardResponse card = parseCardFromJson(dataNode.get(0));
+                    saveCardToDatabase(card);
+                    return card;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching card by ID " + cardId + ": " + e.getMessage());
+        }
+
+        return null;
+    }
+
+    
 }
