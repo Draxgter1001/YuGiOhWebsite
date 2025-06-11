@@ -56,7 +56,7 @@ public class YugiohApiService {
     private CardResponse searchCard(String cardName) {
         try {
             // Build the API URL with card name parameter
-            String url = UriComponentsBuilder.fromHttpUrl(yugiohApiBaseUrl)
+            String url = UriComponentsBuilder.fromUriString(yugiohApiBaseUrl)
                     .queryParam("name", cardName)
                     .queryParam("misc", "yes") // Include additional info
                     .build()
