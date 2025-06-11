@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-YugiohScannerApplication<yugioh-scanner>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "taf.yugioh.scanner.YugiohScannerApplication",
+            "projectName": "yugioh-scanner",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
