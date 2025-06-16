@@ -21,7 +21,7 @@ const Header = () => {
         </div>
         <button className="my-deck-btn">
           <Book style={{ width: '20px', height: '20px', color: '#9ca3af' }} />
-          <span>My Deck</span>
+          <span className="deck-btn-text">My Deck</span>
         </button>
       </div>
     </header>

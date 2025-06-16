@@ -625,3 +625,128 @@ body {
   margin-top: 1rem;
   font-weight: 500;
 }
+
+@media (max-width: 768px) {
+
+  /* 1. General Layout & Typography */
+  .main-container {
+    padding: 2rem 1rem; /* Reduce side padding */
+  }
+
+  .section-title {
+    font-size: 1.75rem; /* Reduce title font size */
+  }
+
+  .section-subtitle {
+    font-size: 1rem; /* Reduce subtitle font size */
+    margin-bottom: 2rem;
+  }
+
+  /* 2. Header */
+  .header-title {
+    font-size: 1.5rem; /* Reduce header title size */
+  }
+
+  /* Hide the "My Deck" text on mobile, keeping the icon */
+  .deck-btn-text {
+    display: none;
+  }
+  
+  .my-deck-btn {
+    padding: 0.75rem; /* Make button square */
+  }
+
+  /* 3. Card Detail Modal */
+  .detail-modal {
+    padding: 1rem;
+  }
+
+  .card-detail-content {
+    /* Stack modal content vertically on mobile */
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    max-height: 90vh; /* Ensure it doesn't go off-screen vertically */
+    overflow-y: auto; /* Allow the modal itself to scroll if content overflows */
+  }
+
+  .card-detail-image {
+    width: 100%;
+    max-width: 280px; /* Adjust image size for mobile */
+  }
+  
+  .info-card-name {
+    font-size: 1.5rem; /* Reduce card name font size in modal */
+  }
+
+  .detail-close-btn {
+    top: 5px;
+    right: 5px;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  /* 4. Recent Cards Layout */
+  /* This ensures the vertical layout doesn't take full width */
+  .recent-cards-container.vertical-layout {
+    width: 100%;
+  }
+  
+  .recent-card-wrapper {
+    /* Make recent cards slightly smaller to fit more if needed */
+    transform: scale(0.9);
+  }
+
+  /* 5. Back to Top Button */
+  .back-to-top-btn {
+    width: 45px;
+    height: 45px;
+    right: 1rem;
+    bottom: 1rem;
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+
+  /* 1. Further reduce padding on the modal to maximize content space */
+  .detail-modal {
+    padding: 0.5rem;
+  }
+
+  .card-detail-content {
+    padding: 0.75rem;
+  }
+
+  /* 2. Key Fix: Stack the header items vertically */
+  .info-header {
+    flex-direction: column; /* Change from row to column */
+    align-items: flex-start; /* Align items to the left */
+    gap: 0.5rem; /* Add a small gap between the name and the icon */
+  }
+
+  /* 3. Fine-tune font sizes for readability */
+  .info-card-name {
+    font-size: 1.25rem;
+  }
+
+  .star-icon {
+    font-size: 1.2rem;
+  }
+
+  .info-stats-row,
+  .info-type-row {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .desc-text {
+    font-size: 0.95rem;
+  }
+  
+  /* 4. Adjust card image size */
+  .card-detail-image {
+    max-width: 250px;
+  }
+}
