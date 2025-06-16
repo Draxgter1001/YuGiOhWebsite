@@ -1,6 +1,6 @@
 import React from 'react';
 import YuGiOhScanner from './YuGiOhScanner';
-import './styles/global.css'; // Changed from Tailwind import to standard CSS
+import './styles/global.css'; 
 
 function App() {
   return <YuGiOhScanner />;
