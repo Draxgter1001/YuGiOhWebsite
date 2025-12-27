@@ -57,61 +57,61 @@ const CardUploader = ({ onCardFound }) => {
   };
 
   return (
-    <div className="card-uploader-container">
-      <div
-        className={`card-drop-area ${isDragging ? 'dragging' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          className="file-input"
-          id="file-upload"
-          disabled={isUploading}
-        />
+      <div className="card-uploader-container">
+        <div
+            className={`card-drop-area ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+          <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="file-input"
+              id="file-upload"
+              disabled={isUploading}
+          />
 
-        <label htmlFor="file-upload" className="upload-label">
-          <div className="upload-icon-area">
-            {isUploading ? (
-              <Loader2 className="loading-spinner" />
-            ) : success ? (
-              <div className="success-icon">
-                <Check className="check-icon" />
+          <label htmlFor="file-upload" className="upload-label">
+            <div className="upload-icon-area">
+              {isUploading ? (
+                  <Loader2 className="loading-spinner" size={64} />
+              ) : success ? (
+                  <div className="success-icon">
+                    <Check className="check-icon" />
+                  </div>
+              ) : (
+                  <>
+                    <Upload className="upload-icon" />
+                    <Camera className="camera-icon" />
+                  </>
+              )}
+            </div>
+
+            <h3 className="upload-title">
+              {isUploading ? 'Scanning Card...' : 'Upload Card Image'}
+            </h3>
+
+            <p className="upload-description">
+              Drag and drop your Yu-Gi-Oh! card image here or click to browse
+            </p>
+
+            <div className="file-types">
+              <span>JPG</span>
+              <span>PNG</span>
+              <span>WEBP</span>
+            </div>
+          </label>
+
+          {error && (
+              <div className="error-banner">
+                <AlertCircle className="error-icon" />
+                <span>{error}</span>
               </div>
-            ) : (
-              <>
-                <Upload className="upload-icon" />
-                <Camera className="camera-icon" />
-              </>
-            )}
-          </div>
-
-          <h3 className="upload-title">
-            {isUploading ? 'Scanning Card...' : 'Upload Card Image'}
-          </h3>
-
-          <p className="upload-description">
-            Drag and drop your Yu-Gi-Oh! card image here or click to browse
-          </p>
-
-          <div className="file-types">
-            <span>JPG</span>
-            <span>PNG</span>
-            <span>WEBP</span>
-          </div>
-        </label>
-
-        {error && (
-          <div className="error-banner">
-            <AlertCircle className="error-icon" />
-            <span>{error}</span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
   );
 };
 

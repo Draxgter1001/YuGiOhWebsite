@@ -1,5 +1,3 @@
-// src/components/CardDetailModal.jsx
-
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
@@ -8,64 +6,72 @@ import { X } from 'lucide-react';
 const LevelStars = ({ level }) => {
   if (!level) return null;
   return (
-    <div className="level-stars">
-      {Array.from({ length: level }).map((_, i) => (
-        <span key={i} className="star-icon">★</span>
-      ))}
-    </div>
+      <div className="level-stars">
+        {Array.from({ length: level }).map((_, i) => (
+            <span key={i} className="star-icon">
+          ★
+        </span>
+        ))}
+      </div>
   );
 };
 
 // Helper component for attribute icons
 const AttributeIcon = ({ attribute }) => {
   if (!attribute) return null;
-  return <div className={`attribute-icon ${attribute.toLowerCase()}`} title={attribute}>{attribute}</div>;
+  return (
+      <div className={`attribute-icon ${attribute.toLowerCase()}`} title={attribute}>
+        {attribute}
+      </div>
+  );
 };
 
 const CardDetailModal = ({ card, onClose }) => {
   const modalContent = (
-    <div className="zoom-modal detail-modal" onClick={onClose}>
-      <div className="card-detail-content" onClick={(e) => e.stopPropagation()}>
-        <button className="zoom-close detail-close-btn" onClick={onClose}>
-          <X size={24} />
-        </button>
-        
-        {/* Left Side: Card Image */}
-        <div className="card-detail-image-wrapper">
-          <img src={card.imageUrl} alt={card.name} className="card-detail-image" />
-        </div>
+      <div className="zoom-modal detail-modal" onClick={onClose}>
+        <div className="card-detail-content" onClick={(e) => e.stopPropagation()}>
+          <button className="zoom-close detail-close-btn" onClick={onClose}>
+            <X size={24} />
+          </button>
 
-        {/* Right Side: Card Info */}
-        <div className="card-detail-info-panel">
-          <header className="info-header">
-            <h2 className="info-card-name">{card.name}</h2>
-            <AttributeIcon attribute={card.attribute} />
-          </header>
-
-          {card.level && (
-            <div className="info-level-row">
-              <LevelStars level={card.level} />
-            </div>
-          )}
-
-          {card.atk !== null && (
-            <div className="info-stats-row">
-              <span className="stat">ATK / {card.atk}</span>
-              <span className="stat">DEF / {card.def}</span>
-            </div>
-          )}
-          
-          <div className="info-type-row">
-            <p>[{card.race} / {card.type}]</p>
+          {/* Left Side: Card Image */}
+          <div className="card-detail-image-wrapper">
+            <img src={card.imageUrl} alt={card.name} className="card-detail-image" />
           </div>
 
-          <div className="info-desc-box">
-            <h3 className="desc-title">Effect</h3>
-            <p className="desc-text">{card.desc}</p>
+          {/* Right Side: Card Info */}
+          <div className="card-detail-info-panel">
+            <header className="info-header">
+              <h2 className="info-card-name">{card.name}</h2>
+              <AttributeIcon attribute={card.attribute} />
+            </header>
+
+            {card.level && (
+                <div className="info-level-row">
+                  <LevelStars level={card.level} />
+                </div>
+            )}
+
+            {card.atk !== null && (
+                <div className="info-stats-row">
+                  <span className="stat">ATK / {card.atk}</span>
+                  <span className="stat">DEF / {card.def}</span>
+                </div>
+            )}
+
+            <div className="info-type-row">
+              <p>
+                [{card.race} / {card.type}]
+              </p>
+            </div>
+
+            <div className="info-desc-box">
+              <h3 className="desc-title">Effect</h3>
+              <p className="desc-text">{card.desc}</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
   );
 
   return createPortal(modalContent, document.body);
