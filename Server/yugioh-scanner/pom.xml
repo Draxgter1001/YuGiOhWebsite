@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.0</version>
+		<!-- Updated to Spring Boot 4.0.0 - uses Spring Framework 7, Tomcat 11, Jakarta EE 10 -->
+		<!-- Note: 4.0.1 is also available if you want the latest patch -->
+		<version>4.0.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>taf</groupId>
@@ -28,6 +30,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Override PostgreSQL version to fix CVE-2025-49146 -->
+		<postgresql.version>42.7.8</postgresql.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -63,33 +67,34 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- Jackson for JSON processing -->
+		<!-- Jackson for JSON processing (managed by Spring Boot) -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 		</dependency>
-		<!-- For file upload handling -->
-		<dependency>
-			<groupId>commons-fileupload</groupId>
-			<artifactId>commons-fileupload</artifactId>
-			<version>1.4</version>
-		</dependency>
-		    <!-- PostgreSQL Driver -->
+		<!--
+		    REMOVED: commons-fileupload 1.4 (vulnerable to CVE-2023-24998, CVE-2025-48976)
+
+		    Spring Boot 4.x includes built-in multipart file upload support via
+		    spring-boot-starter-web. If you need the commons-fileupload API specifically,
+		    use the Jakarta EE 10 compatible version:
+
+		    <dependency>
+		        <groupId>org.apache.commons</groupId>
+		        <artifactId>commons-fileupload2-jakarta-servlet6</artifactId>
+		        <version>2.0.0-M4</version>
+		    </dependency>
+		-->
+		<!-- PostgreSQL Driver (version managed by property override above) -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
-		<!-- HikariCP Connection Pool (included in spring-boot-starter-data-jpa) -->
-		<dependency>
-			<groupId>com.zaxxer</groupId>
-			<artifactId>HikariCP</artifactId>
-		</dependency>
-		<!-- Jackson for JSON processing (included in spring-boot-starter-web) -->
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-		</dependency>
+		<!--
+		    REMOVED: HikariCP explicit dependency
+		    Already included in spring-boot-starter-data-jpa
+		-->
 		<!-- Jackson for Java Time API support -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.datatype</groupId>
