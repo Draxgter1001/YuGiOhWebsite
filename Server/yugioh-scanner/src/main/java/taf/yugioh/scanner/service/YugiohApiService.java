@@ -1,244 +1,242 @@
 package taf.yugioh.scanner.service;
 
+import taf.yugioh.scanner.entity.Card;
 import taf.yugioh.scanner.model.CardResponse;
+import taf.yugioh.scanner.repository.CardRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.Consumer;
 
+/**
+ * Service for fetching Yu-Gi-Oh card data.
+ *
+ * Uses YGOProDeck API v7: https://db.ygoprodeck.com/api/v7/cardinfo.php
+ * API Docs: https://ygoprodeck.com/api-guide/
+ *
+ * Rate Limit: 20 requests/second (blocked 1 hour if exceeded)
+ */
 @Service
 public class YugiohApiService {
 
     @Value("${yugioh.api.base.url:https://db.ygoprodeck.com/api/v7/cardinfo.php}")
-    private String yugiohApiBaseUrl;
+    private String apiBaseUrl;
 
-    @Autowired
-    private DatabaseImageService databaseImageService;
+    @Value("${server.port:8080}")
+    private String serverPort;
 
-    private final RestTemplate restTemplate;
+    private final DatabaseImageService databaseImageService;
+    private final CardRepository cardRepository;
     private final ObjectMapper objectMapper;
+    private RestTemplate restTemplate;
 
-    public YugiohApiService() {
-        this.restTemplate = new RestTemplate();
+    // Constructor injection (recommended over @Autowired field injection)
+    public YugiohApiService(DatabaseImageService databaseImageService, CardRepository cardRepository) {
+        this.databaseImageService = databaseImageService;
+        this.cardRepository = cardRepository;
         this.objectMapper = new ObjectMapper();
     }
 
+    @PostConstruct
+    public void init() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        this.restTemplate = new RestTemplate(factory);
+    }
+
+    /**
+     * Get card by name - for manual search and OCR results
+     */
     public CardResponse getCardByName(String cardName) {
-        // First, try to get from database
-        Optional<CardResponse> cachedCard = findCardInDatabase(cardName);
-        if (cachedCard.isPresent()) {
-            System.out.println("Found card in database: " + cardName);
-            return cachedCard.get();
+        if (cardName == null || cardName.trim().isEmpty()) {
+            return null;
+        }
+        String cleanName = cardName.trim();
+
+        // 1. Check database first (fastest)
+        CardResponse cached = findInDatabase(cleanName);
+        if (cached != null) {
+            System.out.println("✓ DB hit: " + cleanName);
+            return cached;
         }
 
-        // If not in database, search API with different variations
-        CardResponse result = searchCardFromApi(cardName);
+        // 2. Try exact match from API
+        CardResponse result = fetchFromApi("name", cleanName);
         if (result != null) {
-            // Save to database and download images
-            saveCardToDatabase(result);
+            saveToDatabase(result);
             return result;
         }
 
-        // Try different case variations
-        String[] variations = {
-            cardName.toLowerCase(),
-            toTitleCase(cardName),
-            cardName.toUpperCase(),
-            cardName.trim()
-        };
-
-        for (String variation : variations) {
-            if (!variation.equals(cardName)) {
-                result = searchCardFromApi(variation);
-                if (result != null) {
-                    saveCardToDatabase(result);
-                    return result;
-                }
-            }
+        // 3. Try fuzzy search (better for OCR typos)
+        result = fetchFromApi("fname", cleanName);
+        if (result != null) {
+            saveToDatabase(result);
+            return result;
         }
 
-        return null; // Card not found
+        System.out.println("✗ Not found: " + cleanName);
+        return null;
     }
 
-    private Optional<CardResponse> findCardInDatabase(String cardName) {
-        // This is a simple implementation - you might want to improve the search logic
-        // For now, we'll skip database search by name as it would require more complex matching
-        return Optional.empty();
+    /**
+     * Get card by ID - used by DeckService for deck operations
+     */
+    public CardResponse getCardById(Long cardId) {
+        if (cardId == null) {
+            return null;
+        }
+        Optional<CardResponse> cached = databaseImageService.getCardFromDatabase(cardId);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        CardResponse result = fetchFromApi("id", String.valueOf(cardId));
+        if (result != null) {
+            saveToDatabase(result);
+        }
+        return result;
     }
 
-    private CardResponse searchCardFromApi(String cardName) {
+    // ==================== Private Helper Methods ====================
+
+    private CardResponse findInDatabase(String cardName) {
         try {
-            String url = UriComponentsBuilder.fromUriString(yugiohApiBaseUrl)
-                    .queryParam("name", cardName)
-                    .queryParam("misc", "yes")
-                    .build()
-                    .toUriString();
+            Optional<Card> cardOpt = cardRepository.findByNameIgnoreCase(cardName);
+            if (cardOpt.isPresent()) {
+                return mapToResponse(cardOpt.get());
+            }
+        } catch (Exception e) {
+            System.err.println("DB lookup error: " + e.getMessage());
+        }
+        return null;
+    }
 
-            String response = restTemplate.getForObject(url, String.class);
-            
+    private CardResponse fetchFromApi(String paramName, String paramValue) {
+        try {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(apiBaseUrl)
+                    .queryParam(paramName, paramValue);
+
+            if ("fname".equals(paramName)) {
+                builder.queryParam("num", 1).queryParam("offset", 0);
+            }
+
+            String response = restTemplate.getForObject(builder.build().toUriString(), String.class);
             if (response == null) {
                 return null;
             }
 
-            JsonNode rootNode = objectMapper.readTree(response);
-            JsonNode dataNode = rootNode.get("data");
-            
-            if (dataNode == null || !dataNode.isArray() || dataNode.size() == 0) {
+            JsonNode data = objectMapper.readTree(response).get("data");
+            if (data == null || !data.isArray() || data.isEmpty()) {
                 return null;
             }
 
-            JsonNode cardNode = dataNode.get(0);
-            return parseCardFromJson(cardNode);
-
+            CardResponse card = parseJson(data.get(0));
+            System.out.println("✓ API hit (" + paramName + "): " + card.getName());
+            return card;
         } catch (Exception e) {
-            System.err.println("Error fetching card data for: " + cardName + " - " + e.getMessage());
+            if (!e.getMessage().contains("404")) {
+                System.err.println("API error: " + e.getMessage());
+            }
             return null;
         }
     }
 
-    private void saveCardToDatabase(CardResponse cardResponse) {
+    private void saveToDatabase(CardResponse card) {
         try {
-            // Save card information to database
-            databaseImageService.saveCardToDatabase(cardResponse);
-
-            // Download and save images if they exist
-            if (cardResponse.getImageUrl() != null && cardResponse.getImageUrlSmall() != null) {
-                String localImageUrl = databaseImageService.downloadAndStoreImage(
-                    cardResponse.getImageUrl(),
-                    cardResponse.getImageUrlSmall(),
-                    cardResponse.getId()
+            databaseImageService.saveCardToDatabase(card);
+            if (card.getImageUrl() != null) {
+                String localUrl = databaseImageService.downloadAndStoreImage(
+                        card.getImageUrl(),
+                        card.getImageUrlSmall(),
+                        card.getId()
                 );
-
-                if (localImageUrl != null) {
-                    // Update the response with local URLs
-                    cardResponse.setImageUrl(databaseImageService.buildLocalImageUrl(cardResponse.getId(), false));
-                    cardResponse.setImageUrlSmall(databaseImageService.buildLocalImageUrl(cardResponse.getId(), true));
+                if (localUrl != null) {
+                    card.setImageUrl(buildLocalImageUrl(card.getId(), false));
+                    card.setImageUrlSmall(buildLocalImageUrl(card.getId(), true));
                 }
             }
-
         } catch (Exception e) {
-            System.err.println("Error saving card to database: " + e.getMessage());
+            System.err.println("Save error: " + e.getMessage());
         }
     }
 
-    private String toTitleCase(String input) {
-        if (input == null || input.isEmpty()) {
-            return input;
-        }
-
-        String[] words = input.toLowerCase().split("\\s+");
-        StringBuilder titleCase = new StringBuilder();
-
-        Set<String> smallWords = Set.of("the", "of", "and", "or", "but", "in", "on", "at", "to", "for", "from", "with", "by");
-
-        for (int i = 0; i < words.length; i++) {
-            if (i > 0) {
-                titleCase.append(" ");
-            }
-
-            String word = words[i];
-            if (i == 0 || !smallWords.contains(word)) {
-                titleCase.append(Character.toUpperCase(word.charAt(0)))
-                         .append(word.substring(1));
-            } else {
-                titleCase.append(word);
-            }
-        }
-
-        return titleCase.toString();
+    private CardResponse mapToResponse(Card card) {
+        CardResponse r = new CardResponse();
+        r.setId(card.getCardId());
+        r.setName(card.getName());
+        r.setType(card.getType());
+        r.setFrameType(card.getFrameType());
+        r.setDesc(card.getDescription());
+        r.setAtk(card.getAtk());
+        r.setDef(card.getDef());
+        r.setLevel(card.getLevel());
+        r.setRace(card.getRace());
+        r.setAttribute(card.getAttribute());
+        r.setImageUrl(buildLocalImageUrl(card.getCardId(), false));
+        r.setImageUrlSmall(buildLocalImageUrl(card.getCardId(), true));
+        return r;
     }
 
-    private CardResponse parseCardFromJson(JsonNode cardNode) {
+    private CardResponse parseJson(JsonNode node) {
         CardResponse card = new CardResponse();
-        
-        card.setId(cardNode.get("id").asLong());
-        card.setName(cardNode.get("name").asText());
-        card.setType(cardNode.get("type").asText());
-        card.setFrameType(cardNode.get("frameType").asText());
-        card.setDesc(cardNode.get("desc").asText());
-        
-        // Handle optional fields
-        if (cardNode.has("atk")) {
-            card.setAtk(cardNode.get("atk").asInt());
-        }
-        if (cardNode.has("def")) {
-            card.setDef(cardNode.get("def").asInt());
-        }
-        if (cardNode.has("level")) {
-            card.setLevel(cardNode.get("level").asInt());
-        }
-        if (cardNode.has("race")) {
-            card.setRace(cardNode.get("race").asText());
-        }
-        if (cardNode.has("attribute")) {
-            card.setAttribute(cardNode.get("attribute").asText());
-        }
-        
-        // Get card images - store external URLs for now, will be replaced with local URLs after download
-        JsonNode imagesNode = cardNode.get("card_images");
-        if (imagesNode != null && imagesNode.isArray() && imagesNode.size() > 0) {
-            JsonNode firstImage = imagesNode.get(0);
-            card.setImageUrl(firstImage.get("image_url").asText());
-            card.setImageUrlSmall(firstImage.get("image_url_small").asText());
+        card.setId(node.get("id").asLong());
+        card.setName(node.get("name").asText());
+        card.setType(node.get("type").asText());
+        card.setFrameType(node.get("frameType").asText());
+        card.setDesc(node.get("desc").asText());
+
+        // Optional monster stats - using helper to avoid duplicate null checks
+        setIfPresent(node, "atk", val -> card.setAtk(val.asInt()));
+        setIfPresent(node, "def", val -> card.setDef(val.asInt()));
+        setIfPresent(node, "level", val -> card.setLevel(val.asInt()));
+        setIfPresent(node, "race", val -> card.setRace(val.asText()));
+        setIfPresent(node, "attribute", val -> card.setAttribute(val.asText()));
+
+        // Card images
+        JsonNode images = node.get("card_images");
+        if (images != null && images.isArray() && !images.isEmpty()) {
+            JsonNode img = images.get(0);
+            card.setImageUrl(img.get("image_url").asText());
+            card.setImageUrlSmall(img.get("image_url_small").asText());
         }
 
-        // Get card sets
-        JsonNode setsNode = cardNode.get("card_sets");
-        if (setsNode != null && setsNode.isArray()) {
-            card.setCardSets(objectMapper.convertValue(setsNode, Object[].class));
+        // Card sets (optional)
+        JsonNode sets = node.get("card_sets");
+        if (sets != null && sets.isArray()) {
+            card.setCardSets(objectMapper.convertValue(sets, Object[].class));
         }
 
-        // Get card prices
-        JsonNode pricesNode = cardNode.get("card_prices");
-        if (pricesNode != null && pricesNode.isArray() && pricesNode.size() > 0) {
-            card.setCardPrices(objectMapper.convertValue(pricesNode.get(0), Object.class));
+        // Card prices (optional)
+        JsonNode prices = node.get("card_prices");
+        if (prices != null && prices.isArray() && !prices.isEmpty()) {
+            card.setCardPrices(objectMapper.convertValue(prices.get(0), Object.class));
         }
 
         return card;
     }
 
     /**
-     * Get card by ID - first checks database, then API if needed
+     * Helper to reduce duplicate null-checking code for optional JSON fields
      */
-    public CardResponse getCardById(Long cardId) {
-        // Try database first
-        Optional<CardResponse> cachedCard = databaseImageService.getCardFromDatabase(cardId);
-        if (cachedCard.isPresent()) {
-            return cachedCard.get();
+    private void setIfPresent(JsonNode node, String field, Consumer<JsonNode> setter) {
+        if (node.has(field) && !node.get(field).isNull()) {
+            setter.accept(node.get(field));
         }
-
-        // If not in database, search API
-        try {
-            String url = UriComponentsBuilder.fromUriString(yugiohApiBaseUrl)
-                    .queryParam("id", cardId)
-                    .queryParam("misc", "yes")
-                    .build()
-                    .toUriString();
-
-            String response = restTemplate.getForObject(url, String.class);
-            
-            if (response != null) {
-                JsonNode rootNode = objectMapper.readTree(response);
-                JsonNode dataNode = rootNode.get("data");
-                
-                if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
-                    CardResponse card = parseCardFromJson(dataNode.get(0));
-                    saveCardToDatabase(card);
-                    return card;
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Error fetching card by ID " + cardId + ": " + e.getMessage());
-        }
-
-        return null;
     }
 
-    
+    /**
+     * Build local image URL - must match DatabaseImageController endpoints
+     */
+    private String buildLocalImageUrl(Long cardId, boolean small) {
+        String endpoint = small ? "/small" : "/regular";
+        return "http://localhost:" + serverPort + "/api/images/" + cardId + endpoint;
+    }
 }
