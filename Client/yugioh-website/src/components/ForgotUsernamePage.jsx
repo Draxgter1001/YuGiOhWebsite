@@ -1,0 +1,121 @@
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { apiService } from '../services/api';
+import { Sparkles, Loader2, Mail, ArrowLeft, CheckCircle, User } from 'lucide-react';
+
+const ForgotUsernamePage = () => {
+    const [email, setEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+
+        try {
+            const result = await apiService.forgotUsername(email);
+
+            if (result.success) {
+                setSuccess(true);
+            } else {
+                setError(result.message || 'Failed to send email. Please try again.');
+            }
+        } catch (err) {
+            setError('An error occurred. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Success state
+    if (success) {
+        return (
+            <div className="auth-page">
+                <div className="auth-container">
+                    <div className="auth-header">
+                        <div className="auth-logo success-logo">
+                            <CheckCircle size={32} />
+                        </div>
+                        <h1>Check Your Email</h1>
+                        <p>We've sent your username to your email address.</p>
+                    </div>
+
+                    <div className="success-info">
+                        <p>If an account exists with <strong>{email}</strong>, you will receive an email with your username.</p>
+                    </div>
+
+                    <div className="auth-footer">
+                        <p>
+                            <Link to="/login">
+                                <ArrowLeft size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />
+                                Back to Login
+                            </Link>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="auth-page">
+            <div className="auth-container">
+                <div className="auth-header">
+                    <div className="auth-logo">
+                        <User size={32} />
+                    </div>
+                    <h1>Forgot Username?</h1>
+                    <p>Enter your email and we'll send you your username</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="auth-form">
+                    {error && <div className="auth-error">{error}</div>}
+
+                    <div className="form-group">
+                        <label htmlFor="email">Email Address</label>
+                        <div className="input-with-icon">
+                            <Mail size={18} className="input-icon" />
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={email}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setError('');
+                                }}
+                                placeholder="Enter your email address"
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
+                    </div>
+
+                    <button type="submit" className="auth-submit-btn" disabled={isLoading}>
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="spin" size={20} />
+                                Sending...
+                            </>
+                        ) : (
+                            'Send Username'
+                        )}
+                    </button>
+                </form>
+
+                <div className="auth-footer">
+                    <p>
+                        Remember your username? <Link to="/login">Sign in</Link>
+                    </p>
+                    <p>
+                        <Link to="/forgot-password">Forgot your password?</Link>
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ForgotUsernamePage;

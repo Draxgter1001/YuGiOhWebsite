@@ -2090,3 +2090,112 @@ a {
 .add-card-modal {
   max-width: 450px;
 }
+
+/* Forgot links in login page */
+.forgot-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+}
+
+.forgot-links a {
+  color: #9ca3af;
+  transition: color 0.2s;
+}
+
+.forgot-links a:hover {
+  color: #facc15;
+}
+
+.link-separator {
+  color: #4b5563;
+}
+
+/* Success and error logo variants */
+.auth-logo.success-logo {
+  background: linear-gradient(to bottom right, #10b981, #059669);
+}
+
+.auth-logo.error-logo {
+  background: linear-gradient(to bottom right, #ef4444, #dc2626);
+}
+
+/* Success info box */
+.success-info {
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.success-info p {
+  margin: 0;
+  color: #d1d5db;
+  line-height: 1.6;
+}
+
+.success-info p + p {
+  margin-top: 0.75rem;
+}
+
+.success-info strong {
+  color: #10b981;
+}
+
+.info-note {
+  color: #9ca3af !important;
+  font-size: 0.875rem;
+}
+
+/* Error info box */
+.error-info {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.error-info p {
+  margin: 0;
+  color: #d1d5db;
+  line-height: 1.6;
+}
+
+.error-info p + p {
+  margin-top: 0.75rem;
+}
+
+/* Input with icon */
+.input-with-icon {
+  position: relative;
+}
+
+.input-with-icon .input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.input-with-icon input {
+  padding-left: 2.75rem;
+}
+
+/* Auth success state (for button acting as link) */
+.auth-submit-btn.success-btn {
+  background: linear-gradient(to right, #10b981, #059669);
+}
+
+/* Additional auth footer styling for multiple links */
+.auth-footer p + p {
+  margin-top: 0.5rem;
+}

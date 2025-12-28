@@ -249,4 +249,38 @@ export const apiService = {
   },
 
   getAccessToken,
+
+  // ============ PASSWORD RESET ============
+  forgotPassword: async (email) => {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return response.json();
+  },
+
+  verifyResetToken: async (token) => {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-reset-token?token=${encodeURIComponent(token)}`);
+    return response.json();
+  },
+
+  resetPassword: async (token, newPassword) => {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+    return response.json();
+  },
+
+// ============ USERNAME RECOVERY ============
+  forgotUsername: async (email) => {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-username`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return response.json();
+  },
 };
