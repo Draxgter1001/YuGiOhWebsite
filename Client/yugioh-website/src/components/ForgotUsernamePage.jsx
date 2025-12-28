@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Sparkles, Loader2, Mail, ArrowLeft, CheckCircle, User } from 'lucide-react';
+import { Loader2, Mail, ArrowLeft, CheckCircle, User } from 'lucide-react';
 
 const ForgotUsernamePage = () => {
     const [email, setEmail] = useState('');
@@ -35,9 +35,11 @@ const ForgotUsernamePage = () => {
             <div className="auth-page">
                 <div className="auth-container">
                     <div className="auth-header">
-                        <div className="auth-logo success-logo">
-                            <CheckCircle size={32} />
-                        </div>
+                        <Link to="/" className="auth-logo-link">
+                            <div className="auth-logo success-logo">
+                                <CheckCircle size={32} />
+                            </div>
+                        </Link>
                         <h1>Check Your Email</h1>
                         <p>We've sent your username to your email address.</p>
                     </div>
@@ -63,9 +65,11 @@ const ForgotUsernamePage = () => {
         <div className="auth-page">
             <div className="auth-container">
                 <div className="auth-header">
-                    <div className="auth-logo">
-                        <User size={32} />
-                    </div>
+                    <Link to="/" className="auth-logo-link">
+                        <div className="auth-logo">
+                            <User size={32} />
+                        </div>
+                    </Link>
                     <h1>Forgot Username?</h1>
                     <p>Enter your email and we'll send you your username</p>
                 </div>

@@ -35,9 +35,11 @@ const ForgotPasswordPage = () => {
             <div className="auth-page">
                 <div className="auth-container">
                     <div className="auth-header">
-                        <div className="auth-logo success-logo">
-                            <CheckCircle size={32} />
-                        </div>
+                        <Link to="/" className="auth-logo-link">
+                            <div className="auth-logo success-logo">
+                                <CheckCircle size={32} />
+                            </div>
+                        </Link>
                         <h1>Check Your Email</h1>
                         <p>We've sent a password reset link to your email address.</p>
                     </div>
@@ -64,9 +66,11 @@ const ForgotPasswordPage = () => {
         <div className="auth-page">
             <div className="auth-container">
                 <div className="auth-header">
-                    <div className="auth-logo">
-                        <Sparkles size={32} />
-                    </div>
+                    <Link to="/" className="auth-logo-link">
+                        <div className="auth-logo">
+                            <Sparkles size={32} />
+                        </div>
+                    </Link>
                     <h1>Forgot Password?</h1>
                     <p>Enter your email and we'll send you a reset link</p>
                 </div>
