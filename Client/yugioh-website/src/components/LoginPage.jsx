@@ -44,9 +44,11 @@ const LoginPage = () => {
         <div className="auth-page">
             <div className="auth-container">
                 <div className="auth-header">
-                    <div className="auth-logo">
-                        <Sparkles size={32} />
-                    </div>
+                    <Link to="/" className="auth-logo-link">
+                        <div className="auth-logo">
+                            <Sparkles size={32} />
+                        </div>
+                    </Link>
                     <h1>Welcome Back</h1>
                     <p>Sign in to your Yu-Gi-Oh! Scanner account</p>
                 </div>

@@ -116,9 +116,11 @@ const ResetPasswordPage = () => {
             <div className="auth-page">
                 <div className="auth-container">
                     <div className="auth-header">
-                        <div className="auth-logo error-logo">
-                            <AlertCircle size={32} />
-                        </div>
+                        <Link to="/" className="auth-logo-link">
+                            <div className="auth-logo error-logo">
+                                <AlertCircle size={32} />
+                            </div>
+                        </Link>
                         <h1>Invalid Reset Link</h1>
                         <p>This password reset link is invalid or has expired.</p>
                     </div>
@@ -148,9 +150,11 @@ const ResetPasswordPage = () => {
             <div className="auth-page">
                 <div className="auth-container">
                     <div className="auth-header">
-                        <div className="auth-logo success-logo">
-                            <CheckCircle size={32} />
-                        </div>
+                        <Link to="/" className="auth-logo-link">
+                            <div className="auth-logo success-logo">
+                                <CheckCircle size={32} />
+                            </div>
+                        </Link>
                         <h1>Password Reset!</h1>
                         <p>Your password has been successfully changed.</p>
                     </div>
@@ -174,9 +178,11 @@ const ResetPasswordPage = () => {
         <div className="auth-page">
             <div className="auth-container">
                 <div className="auth-header">
-                    <div className="auth-logo">
-                        <Sparkles size={32} />
-                    </div>
+                    <Link to="/" className="auth-logo-link">
+                        <div className="auth-logo">
+                            <Sparkles size={32} />
+                        </div>
+                    </Link>
                     <h1>Reset Password</h1>
                     <p>Enter your new password below</p>
                 </div>

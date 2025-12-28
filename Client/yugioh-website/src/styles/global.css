@@ -2199,3 +2199,17 @@ a {
 .auth-footer p + p {
   margin-top: 0.5rem;
 }
+
+/* Make the auth logo clickable */
+.auth-logo-link {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.auth-logo-link:hover {
+  transform: scale(1.05);
+}
+
+.auth-logo-link:hover .auth-logo {
+  box-shadow: 0 4px 15px rgba(250, 204, 21, 0.4);
+}

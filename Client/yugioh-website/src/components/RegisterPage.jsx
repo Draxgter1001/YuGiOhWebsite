@@ -80,9 +80,11 @@ const RegisterPage = () => {
         <div className="auth-page">
             <div className="auth-container">
                 <div className="auth-header">
-                    <div className="auth-logo">
-                        <Sparkles size={32} />
-                    </div>
+                    <Link to="/" className="auth-logo-link">
+                        <div className="auth-logo">
+                            <Sparkles size={32} />
+                        </div>
+                    </Link>
                     <h1>Create Account</h1>
                     <p>Join Yu-Gi-Oh! Scanner and build your decks</p>
                 </div>

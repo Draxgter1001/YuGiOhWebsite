@@ -15,9 +15,8 @@ import {
     Lock,
     X,
     Upload,
-    Camera,
 } from 'lucide-react';
-import Header from '../components/Header';
+import Header from './Header';
 
 const DeckBuilderPage = () => {
     const { deckId } = useParams();
@@ -37,7 +36,7 @@ const DeckBuilderPage = () => {
 
     // Add card state
     const [showAddCard, setShowAddCard] = useState(false);
-    const [addMode, setAddMode] = useState('search'); // 'search' or 'scan'
+    const [addMode, setAddMode] = useState('search');
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResult, setSearchResult] = useState(null);
     const [isSearching, setIsSearching] = useState(false);
@@ -71,20 +70,16 @@ const DeckBuilderPage = () => {
         }
     };
 
-    const handleSaveInfo = async () => {
+    const handleSaveEdit = async () => {
         if (!editName.trim()) return;
 
         setIsSaving(true);
         try {
-            const updated = await apiService.updateDeck(
-                deckId,
-                editName,
-                editDescription,
-                editIsPublic
-            );
+            const updated = await apiService.updateDeck(deckId, editName, editDescription, editIsPublic);
             setDeck(updated);
             setIsEditing(false);
-            showSuccess('Deck updated successfully');
+            setSuccessMessage('Deck updated successfully!');
+            setTimeout(() => setSuccessMessage(''), 3000);
         } catch (err) {
             setError('Failed to update deck');
         } finally {
@@ -92,7 +87,7 @@ const DeckBuilderPage = () => {
         }
     };
 
-    const handleSearchCard = async () => {
+    const handleSearch = async () => {
         if (!searchTerm.trim()) return;
 
         setIsSearching(true);
@@ -100,22 +95,21 @@ const DeckBuilderPage = () => {
         setSearchResult(null);
 
         try {
-            const card = await apiService.searchCard(searchTerm);
-            if (card) {
-                setSearchResult(card);
+            const result = await apiService.searchCard(searchTerm);
+            if (result) {
+                setSearchResult(result);
             } else {
-                setSearchError('Card not found. Please use exact name.');
+                setSearchError('Card not found');
             }
         } catch (err) {
-            setSearchError('Card not found. Please use exact name.');
+            setSearchError('Search failed. Please try again.');
         } finally {
             setIsSearching(false);
         }
     };
 
-    // Handle file upload for scanning
-    const handleFileSelect = async (e) => {
-        const file = e.target.files[0];
+    const handleScan = async (e) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
         setIsScanning(true);
@@ -123,18 +117,16 @@ const DeckBuilderPage = () => {
         setSearchResult(null);
 
         try {
-            const response = await apiService.uploadCard(file);
-
-            if (response.success && response.data) {
-                setSearchResult(response.data);
+            const result = await apiService.uploadCard(file);
+            if (result) {
+                setSearchResult(result);
             } else {
-                setScanError(response.message || 'Failed to identify card');
+                setScanError('Could not identify the card');
             }
         } catch (err) {
             setScanError('Scan failed. Please try again.');
         } finally {
             setIsScanning(false);
-            // Reset file input
             e.target.value = '';
         }
     };
@@ -144,28 +136,22 @@ const DeckBuilderPage = () => {
 
         setIsAddingCard(true);
         try {
-            const updated = await apiService.addCardToDeck(
-                deckId,
-                searchResult.id,
-                1,
-                selectedDeckType
-            );
+            const updated = await apiService.addCardToDeck(deckId, searchResult.id, 1, selectedDeckType);
             setDeck(updated);
-            setSearchResult(null);
-            setSearchTerm('');
-            showSuccess('Card added to deck');
+            setSuccessMessage(`Added "${searchResult.name}" to ${selectedDeckType.toLowerCase()} deck!`);
+            closeAddCardModal();
+            setTimeout(() => setSuccessMessage(''), 3000);
         } catch (err) {
-            setError(err.message || 'Failed to add card');
+            setSearchError(err.message || 'Failed to add card');
         } finally {
             setIsAddingCard(false);
         }
     };
 
-    const handleRemoveCard = async (cardId, deckType, quantity = 1) => {
+    const handleRemoveCard = async (cardId, deckType, quantity = null) => {
         try {
             const updated = await apiService.removeCardFromDeck(deckId, cardId, deckType, quantity);
             setDeck(updated);
-            showSuccess('Card removed');
         } catch (err) {
             setError('Failed to remove card');
         }
@@ -179,13 +165,6 @@ const DeckBuilderPage = () => {
             setError('Failed to validate deck');
         }
     };
-
-    const showSuccess = (message) => {
-        setSuccessMessage(message);
-        setTimeout(() => setSuccessMessage(''), 3000);
-    };
-
-    const clearError = () => setError('');
 
     const openAddCardModal = () => {
         setShowAddCard(true);
@@ -207,8 +186,9 @@ const DeckBuilderPage = () => {
 
     // Group cards by their info
     const groupCards = (cards) => {
+        if (!cards) return [];
         const grouped = {};
-        cards?.forEach((card) => {
+        cards.forEach((card) => {
             if (grouped[card.cardId]) {
                 grouped[card.cardId].quantity += card.quantity;
             } else {
@@ -238,7 +218,7 @@ const DeckBuilderPage = () => {
                 <Header />
                 <div className="error-container">
                     <p>Deck not found</p>
-                    <button onClick={() => navigate('/decks')}>Back to My Decks</button>
+                    <button onClick={() => navigate('/decks')}>Back to Decks</button>
                 </div>
             </div>
         );
@@ -249,14 +229,13 @@ const DeckBuilderPage = () => {
             <div className="scanner-pattern" />
             <Header />
 
-            <main className="main-container deck-builder">
-                {/* Back button and title */}
+            <main className="main-container deck-builder-page">
+                {/* Header */}
                 <div className="deck-builder-header">
                     <button className="back-btn" onClick={() => navigate('/decks')}>
                         <ArrowLeft size={20} />
                         <span>Back to Decks</span>
                     </button>
-
                     <button className="add-card-btn" onClick={openAddCardModal}>
                         <Plus size={20} />
                         <span>Add Card</span>
@@ -265,37 +244,38 @@ const DeckBuilderPage = () => {
 
                 {/* Messages */}
                 {error && (
-                    <div className="error-message" onClick={clearError}>
-                        <AlertCircle size={20} />
+                    <div className="error-message" onClick={() => setError('')}>
+                        <AlertCircle size={18} />
                         <span>{error}</span>
                         <X size={16} className="close-icon" />
                     </div>
                 )}
 
                 {successMessage && (
-                    <div className="success-message">
-                        <CheckCircle size={20} />
+                    <div className="success-message" onClick={() => setSuccessMessage('')}>
+                        <CheckCircle size={18} />
                         <span>{successMessage}</span>
+                        <X size={16} className="close-icon" />
                     </div>
                 )}
 
-                {/* Deck Info Section */}
+                {/* Deck Info */}
                 <div className="deck-info-section">
                     {isEditing ? (
-                        <div className="deck-edit-form">
+                        <div className="deck-info-edit">
                             <input
                                 type="text"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Deck name"
                                 className="deck-name-input"
+                                placeholder="Deck name"
                             />
                             <textarea
                                 value={editDescription}
                                 onChange={(e) => setEditDescription(e.target.value)}
-                                placeholder="Description..."
-                                rows={2}
                                 className="deck-desc-input"
+                                placeholder="Description (optional)"
+                                rows={2}
                             />
                             <label className="public-toggle">
                                 <input
@@ -303,17 +283,13 @@ const DeckBuilderPage = () => {
                                     checked={editIsPublic}
                                     onChange={(e) => setEditIsPublic(e.target.checked)}
                                 />
-                                <span>Make deck public</span>
+                                <span>Public deck</span>
                             </label>
                             <div className="edit-actions">
-                                <button className="cancel-btn" onClick={() => setIsEditing(false)}>
+                                <button className="cancel-btn" onClick={() => setIsEditing(false)} disabled={isSaving}>
                                     Cancel
                                 </button>
-                                <button
-                                    className="save-btn"
-                                    onClick={handleSaveInfo}
-                                    disabled={isSaving}
-                                >
+                                <button className="save-btn" onClick={handleSaveEdit} disabled={isSaving}>
                                     {isSaving ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
                                     <span>Save</span>
                                 </button>
@@ -382,23 +358,23 @@ const DeckBuilderPage = () => {
                     </div>
                 )}
 
-                {/* Card Lists */}
+                {/* Card Lists - FIXED: Using correct property names */}
                 <div className="deck-sections">
                     <DeckSection
                         title="Main Deck"
-                        cards={groupCards(deck.mainDeckCards)}
+                        cards={groupCards(deck.mainDeck)}
                         deckType="MAIN"
                         onRemove={handleRemoveCard}
                     />
                     <DeckSection
                         title="Extra Deck"
-                        cards={groupCards(deck.extraDeckCards)}
+                        cards={groupCards(deck.extraDeck)}
                         deckType="EXTRA"
                         onRemove={handleRemoveCard}
                     />
                     <DeckSection
                         title="Side Deck"
-                        cards={groupCards(deck.sideDeckCards)}
+                        cards={groupCards(deck.sideDeck)}
                         deckType="SIDE"
                         onRemove={handleRemoveCard}
                     />
@@ -424,37 +400,39 @@ const DeckBuilderPage = () => {
                                 className={`mode-btn ${addMode === 'scan' ? 'active' : ''}`}
                                 onClick={() => setAddMode('scan')}
                             >
-                                <Camera size={18} />
+                                <Upload size={18} />
                                 <span>Scan</span>
                             </button>
                         </div>
 
                         {/* Search Mode */}
                         {addMode === 'search' && (
-                            <div className="search-row">
-                                <input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleSearchCard()}
-                                    placeholder="Search card by exact name..."
-                                    disabled={isSearching}
-                                />
-                                <button onClick={handleSearchCard} disabled={isSearching || !searchTerm.trim()}>
-                                    {isSearching ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
-                                </button>
+                            <div className="search-card-section">
+                                <div className="modal-search-bar">
+                                    <input
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                        placeholder="Enter exact card name"
+                                        disabled={isSearching}
+                                    />
+                                    <button onClick={handleSearch} disabled={isSearching || !searchTerm.trim()}>
+                                        {isSearching ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
+                                    </button>
+                                </div>
                             </div>
                         )}
 
                         {/* Scan Mode */}
                         {addMode === 'scan' && (
-                            <div className="scan-upload-area">
+                            <div className="scan-card-section">
                                 <input
                                     type="file"
                                     accept="image/*"
-                                    onChange={handleFileSelect}
-                                    className="scan-file-input"
+                                    onChange={handleScan}
                                     id="scan-upload"
+                                    className="scan-upload-input"
                                     disabled={isScanning}
                                 />
                                 <label htmlFor="scan-upload" className="scan-upload-label">
