@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import taf.yugioh.scanner.dto.*;
 import taf.yugioh.scanner.entity.User;
+import taf.yugioh.scanner.service.PasswordResetService;
 import taf.yugioh.scanner.service.UserService;
 
 @RestController
@@ -15,6 +16,9 @@ public class AuthController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private PasswordResetService passwordResetService;
 
     /**
      * Register a new user
@@ -85,5 +89,66 @@ public class AuthController {
             return ResponseEntity.ok(ApiResponse.success("Token invalid", false));
         }
         return ResponseEntity.ok(ApiResponse.success("Token valid", true));
+    }
+
+    // ==================== Password Reset Endpoints ====================
+
+    /**
+     * Request password reset - sends email with reset link
+     * POST /api/auth/forgot-password
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        ApiResponse<Void> response = passwordResetService.requestPasswordReset(request.getEmail());
+
+        // Always return 200 to prevent email enumeration
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Verify if reset token is valid
+     * GET /api/auth/verify-reset-token
+     */
+    @GetMapping("/verify-reset-token")
+    public ResponseEntity<ApiResponse<Boolean>> verifyResetToken(@RequestParam String token) {
+        ApiResponse<Boolean> response = passwordResetService.verifyResetToken(token);
+
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    /**
+     * Reset password using token
+     * POST /api/auth/reset-password
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        ApiResponse<Void> response = passwordResetService.resetPassword(
+                request.getToken(),
+                request.getNewPassword()
+        );
+
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    // ==================== Username Recovery Endpoint ====================
+
+    /**
+     * Request username reminder - sends email with username
+     * POST /api/auth/forgot-username
+     */
+    @PostMapping("/forgot-username")
+    public ResponseEntity<ApiResponse<Void>> forgotUsername(@Valid @RequestBody ForgotUsernameRequest request) {
+        ApiResponse<Void> response = passwordResetService.sendUsernameReminder(request.getEmail());
+
+        // Always return 200 to prevent email enumeration
+        return ResponseEntity.ok(response);
     }
 }

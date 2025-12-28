@@ -7,42 +7,48 @@ import ProtectedRoute from './components/ProtectedRoute';
 import YuGiOhScanner from './YuGiOhScanner';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
+import ForgotUsernamePage from './components/ForgotUsernamePage';
 import MyDecksPage from './components/MyDecksPage';
 import DeckBuilderPage from './components/DeckBuilderPage';
 
 import './styles/global.css';
 
 function App() {
-  return (
-      <AuthProvider>
-        <Router>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<YuGiOhScanner />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+    return (
+        <AuthProvider>
+            <Router>
+                <Routes>
+                    {/* Public Routes */}
+                    <Route path="/" element={<YuGiOhScanner />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                    <Route path="/forgot-username" element={<ForgotUsernamePage />} />
 
-            {/* Protected Routes */}
-            <Route
-                path="/decks"
-                element={
-                  <ProtectedRoute>
-                    <MyDecksPage />
-                  </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/decks/:deckId"
-                element={
-                  <ProtectedRoute>
-                    <DeckBuilderPage />
-                  </ProtectedRoute>
-                }
-            />
-          </Routes>
-        </Router>
-      </AuthProvider>
-  );
+                    {/* Protected Routes */}
+                    <Route
+                        path="/decks"
+                        element={
+                            <ProtectedRoute>
+                                <MyDecksPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/decks/:deckId"
+                        element={
+                            <ProtectedRoute>
+                                <DeckBuilderPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                </Routes>
+            </Router>
+        </AuthProvider>
+    );
 }
 
 export default App;

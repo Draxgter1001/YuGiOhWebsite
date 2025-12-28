@@ -91,6 +91,12 @@ const LoginPage = () => {
                         </div>
                     </div>
 
+                    <div className="forgot-links">
+                        <Link to="/forgot-password">Forgot password?</Link>
+                        <span className="link-separator">•</span>
+                        <Link to="/forgot-username">Forgot username?</Link>
+                    </div>
+
                     <button type="submit" className="auth-submit-btn" disabled={isLoading}>
                         {isLoading ? (
                             <>
