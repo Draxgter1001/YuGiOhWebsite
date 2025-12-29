@@ -1,109 +1,70 @@
-// CardOcrService.java
 package taf.yugioh.scanner.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class CardOCRService {
 
-    @Value("${app.python.script.path:src/main/resources/scripts/extract_name.py}")
-    private String pythonScriptPath;
-
-    @Value("${app.python.executable:python}")
-    private String pythonExecutable;
-
     @Value("${app.upload.temp.dir:temp/uploads}")
     private String tempUploadDir;
 
+    // URL of the Python Flask Server
+    private final String OCR_SERVER_URL = "http://127.0.0.1:5000/extract";
+    private final RestTemplate restTemplate = new RestTemplate();
+
     public String extractCardName(MultipartFile imageFile) throws Exception {
-        // Create temp directory if it doesn't exist
         Path tempDir = Paths.get(tempUploadDir);
         if (!Files.exists(tempDir)) {
             Files.createDirectories(tempDir);
         }
 
-        // Save uploaded file temporarily
         String tempFileName = System.currentTimeMillis() + "_" + imageFile.getOriginalFilename();
         Path tempFilePath = tempDir.resolve(tempFileName);
-        
+
         try {
-            // Save the uploaded file
+            // Save file so Python can read it
             Files.copy(imageFile.getInputStream(), tempFilePath);
 
-            // Execute Python script
-            String cardName = executePythonScript(tempFilePath.toString());
-            
-            return cardName;
-            
+            // Call Python Server
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, String> body = new HashMap<>();
+            body.put("image_path", tempFilePath.toAbsolutePath().toString());
+
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
+
+            Map response = restTemplate.postForObject(OCR_SERVER_URL, request, Map.class);
+
+            if (response != null && response.containsKey("card_name")) {
+                return (String) response.get("card_name");
+            }
+
+            return null;
+
+        } catch (Exception e) {
+            // If server is down, you might want to fallback to CLI or log error
+            System.err.println("OCR Server Error: " + e.getMessage());
+            throw new RuntimeException("OCR Service Unavailable");
         } finally {
-            // Clean up temporary file
             try {
                 Files.deleteIfExists(tempFilePath);
             } catch (IOException e) {
-                // Log the error but don't throw it
-                System.err.println("Failed to delete temporary file: " + tempFilePath);
+                // Ignore delete errors
             }
         }
-    }
-
-    private String executePythonScript(String imagePath) throws Exception {
-        ProcessBuilder processBuilder = new ProcessBuilder(
-            pythonExecutable, pythonScriptPath, imagePath
-        );
-        
-        // Don't redirect error stream to output - keep them separate
-        processBuilder.redirectErrorStream(false);
-        Process process = processBuilder.start();
-
-        // Read stdout and stderr separately
-        StringBuilder output = new StringBuilder();
-        StringBuilder errorOutput = new StringBuilder();
-        
-        // Read stdout (card name)
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-            }
-        }
-        
-        // Read stderr (error messages/warnings)
-        try (BufferedReader errorReader = new BufferedReader(
-                new InputStreamReader(process.getErrorStream()))) {
-            String line;
-            while ((line = errorReader.readLine()) != null) {
-                errorOutput.append(line).append("\n");
-            }
-        }
-
-        // Wait for the process to complete
-        boolean finished = process.waitFor(30, TimeUnit.SECONDS);
-        
-        if (!finished) {
-            process.destroyForcibly();
-            throw new RuntimeException("Python script execution timed out");
-        }
-
-        int exitCode = process.exitValue();
-        if (exitCode != 0) {
-            String errorMsg = errorOutput.toString().trim();
-            throw new RuntimeException("Python script failed: " + errorMsg);
-        }
-
-        String result = output.toString().trim();
-        if (result.isEmpty()) {
-            throw new RuntimeException("No card name extracted from image");
-        }
-
-        return result;
     }
 }
