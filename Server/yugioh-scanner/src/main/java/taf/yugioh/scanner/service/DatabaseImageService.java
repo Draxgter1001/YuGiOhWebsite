@@ -1,5 +1,7 @@
 package taf.yugioh.scanner.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import taf.yugioh.scanner.entity.Card;
 import taf.yugioh.scanner.entity.CardImage;
 import taf.yugioh.scanner.repository.CardImageRepository;
@@ -30,6 +32,8 @@ public class DatabaseImageService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseImageService.class);
+
     public DatabaseImageService() {
         this.restTemplate = new RestTemplate();
         this.objectMapper = new ObjectMapper();
@@ -53,7 +57,7 @@ public class DatabaseImageService {
                 try {
                     imageData = restTemplate.getForObject(externalImageUrl, byte[].class);
                 } catch (Exception e) {
-                    System.err.println("Failed to download main image: " + e.getMessage());
+                    logger.error("Failed to download main image: " + e.getMessage());
                 }
             }
 
@@ -61,7 +65,7 @@ public class DatabaseImageService {
                 try {
                     smallImageData = restTemplate.getForObject(externalSmallImageUrl, byte[].class);
                 } catch (Exception e) {
-                    System.err.println("Failed to download small image: " + e.getMessage());
+                    logger.error("Failed to download small image: " + e.getMessage());
                 }
             }
 
@@ -78,18 +82,18 @@ public class DatabaseImageService {
                 // Save with proper transaction handling
                 CardImage savedImage = cardImageRepository.save(cardImage);
 
-                System.out.println("Downloaded and stored image for card " + cardId + 
+                logger.info("Downloaded and stored image for card " + cardId +
                     " (Size: " + imageData.length + " bytes" +
                     (smallImageData != null ? ", Small: " + smallImageData.length + " bytes" : "") + ")");
 
                 return buildLocalImageUrl(cardId, false);
             } else {
-                System.err.println("Failed to download image: " + externalImageUrl);
+                logger.error("Failed to download image: " + externalImageUrl);
                 return null;
             }
 
         } catch (Exception e) {
-            System.err.println("Error downloading image " + externalImageUrl + ": " + e.getMessage());
+            logger.error("Error downloading image " + externalImageUrl + ": " + e.getMessage());
             e.printStackTrace(); // Add stack trace for debugging
             return null;
         }
@@ -150,11 +154,11 @@ public class DatabaseImageService {
             Card card;
             if (existingCard.isPresent()) {
                 card = existingCard.get();
-                System.out.println("Updating existing card: " + card.getName());
+                logger.info("Updating existing card: " + card.getName());
             } else {
                 card = new Card();
                 card.setCardId(cardResponse.getId());
-                System.out.println("Creating new card: " + cardResponse.getName());
+                logger.info("Creating new card: " + cardResponse.getName());
             }
 
             // Update card information
@@ -179,11 +183,11 @@ public class DatabaseImageService {
             }
 
             Card savedCard = cardRepository.save(card);
-            System.out.println("Successfully saved card: " + savedCard.getName() + " (ID: " + savedCard.getCardId() + ")");
+            logger.info("Successfully saved card: " + savedCard.getName() + " (ID: " + savedCard.getCardId() + ")");
             return savedCard;
 
         } catch (Exception e) {
-            System.err.println("Error saving card to database: " + e.getMessage());
+            logger.error("Error saving card to database: " + e.getMessage());
             e.printStackTrace(); // Add stack trace for debugging
             throw e; // Re-throw to trigger transaction rollback
         }
@@ -240,7 +244,7 @@ public class DatabaseImageService {
             // Convert object to JSON string
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
-            System.err.println("Error converting to JSON: " + e.getMessage());
+            logger.error("Error converting to JSON: " + e.getMessage());
             e.printStackTrace();
             return null;
         }

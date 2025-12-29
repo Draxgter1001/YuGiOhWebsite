@@ -1,5 +1,7 @@
 package taf.yugioh.scanner.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import taf.yugioh.scanner.entity.Card;
 import taf.yugioh.scanner.model.CardResponse;
 import taf.yugioh.scanner.repository.CardRepository;
@@ -38,6 +40,9 @@ public class YugiohApiService {
     private final ObjectMapper objectMapper;
     private RestTemplate restTemplate;
 
+    private static final Logger logger = LoggerFactory.getLogger(YugiohApiService.class);
+
+
     // Constructor injection (recommended over @Autowired field injection)
     public YugiohApiService(DatabaseImageService databaseImageService, CardRepository cardRepository) {
         this.databaseImageService = databaseImageService;
@@ -65,7 +70,7 @@ public class YugiohApiService {
         // 1. Check database first (fastest)
         CardResponse cached = findInDatabase(cleanName);
         if (cached != null) {
-            System.out.println("✓ DB hit: " + cleanName);
+            logger.info("✓ DB hit: " + cleanName);
             return cached;
         }
 
@@ -83,7 +88,7 @@ public class YugiohApiService {
             return result;
         }
 
-        System.out.println("✗ Not found: " + cleanName);
+        logger.info("✗ Not found: " + cleanName);
         return null;
     }
 
@@ -114,7 +119,7 @@ public class YugiohApiService {
                 return mapToResponse(cardOpt.get());
             }
         } catch (Exception e) {
-            System.err.println("DB lookup error: " + e.getMessage());
+            logger.error("DB lookup error: " + e.getMessage());
         }
         return null;
     }
@@ -139,33 +144,39 @@ public class YugiohApiService {
             }
 
             CardResponse card = parseJson(data.get(0));
-            System.out.println("✓ API hit (" + paramName + "): " + card.getName());
+            logger.info("✓ API hit (" + paramName + "): " + card.getName());
             return card;
         } catch (Exception e) {
             if (!e.getMessage().contains("404")) {
-                System.err.println("API error: " + e.getMessage());
+                logger.error("API error: " + e.getMessage());
             }
             return null;
         }
     }
 
     private void saveToDatabase(CardResponse card) {
-        try {
-            databaseImageService.saveCardToDatabase(card);
-            if (card.getImageUrl() != null) {
-                String localUrl = databaseImageService.downloadAndStoreImage(
-                        card.getImageUrl(),
-                        card.getImageUrlSmall(),
-                        card.getId()
-                );
-                if (localUrl != null) {
-                    card.setImageUrl(buildLocalImageUrl(card.getId(), false));
-                    card.setImageUrlSmall(buildLocalImageUrl(card.getId(), true));
+        // Run database saving and image downloading in a background thread
+        // so the user gets the API response immediately.
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                // 1. Save Card Data
+                databaseImageService.saveCardToDatabase(card);
+
+                // 2. Download Image (This is the slow part)
+                if (card.getImageUrl() != null) {
+                    databaseImageService.downloadAndStoreImage(
+                            card.getImageUrl(),
+                            card.getImageUrlSmall(),
+                            card.getId()
+                    );
+                    // Note: We don't need to update the 'card' object here
+                    // because the User has already received their response.
+                    // The NEXT user to query this card will get the local images.
                 }
+            } catch (Exception e) {
+                logger.error("Background save error: " + e.getMessage());
             }
-        } catch (Exception e) {
-            System.err.println("Save error: " + e.getMessage());
-        }
+        });
     }
 
     private CardResponse mapToResponse(Card card) {
