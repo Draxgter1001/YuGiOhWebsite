@@ -153,6 +153,7 @@ const DeckBuilderPage = () => {
             setDeck(updated);
             setSearchResult(null);
             setSearchTerm('');
+            closeAddCardModal();
             showSuccess('Card added to deck');
         } catch (err) {
             setError(err.message || 'Failed to add card');
