@@ -3,22 +3,32 @@ import sys
 import easyocr
 import logging
 from flask import Flask, request, jsonify
+# Import waitress for production serving
+from waitress import serve
 
-# Configure logging for production
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 1. Load the model ONCE when the server starts
-print("Loading OCR Model... this may take a moment.")
-reader = easyocr.Reader(['en'], gpu=False) # Set gpu=True if you have a GPU server
-print("OCR Model Loaded and Ready.")
+# Load model on startup
+logger.info("Loading EasyOCR Model...")
+try:
+    # gpu=False for Heroku (unless you have a GPU dyno, which is rare/expensive)
+    reader = easyocr.Reader(['en'], gpu=False)
+    logger.info("OCR Model Loaded Successfully.")
+except Exception as e:
+    logger.error(f"Failed to load OCR model: {e}")
+    sys.exit(1)
 
 def clean_name_for_api(card_name):
-    """Same cleaning logic as your original script"""
     if not card_name: return None
     import re
+    # Normalize text
     cleaned = card_name.replace('|', 'I').replace('0', 'O')
     cleaned = ' '.join(cleaned.split())
     cleaned = cleaned.replace('"', '').replace("'", "")
@@ -41,43 +51,56 @@ def clean_name_for_api(card_name):
 def extract():
     file_path = None
     try:
-        # Get image path from request
         data = request.json
         file_path = data.get('image_path')
 
-        if not file_path or not os.path.exists(file_path):
-            return jsonify({'error': 'File not found'}), 400
+        if not file_path:
+            return jsonify({'error': 'No image_path provided'}), 400
+
+        if not os.path.exists(file_path):
+            logger.warning(f"File not found: {file_path}")
+            return jsonify({'error': 'File not found'}), 404
 
         # Perform OCR
+        # detail=1 returns position info
         result = reader.readtext(file_path)
 
         if not result:
             return jsonify({'card_name': None})
 
-        # Filter results (Logic preserved from your original script)
+        # Filter results: Text length >= 3 and Confidence > 0.5
         valid_detections = []
         for detection in result:
-            text = detection[1].strip()
-            confidence = detection[2]
+            bbox, text, confidence = detection
+            text = text.strip()
             if len(text) >= 3 and confidence > 0.5:
-                bbox = detection[0]
+                # Store Y-coordinate (bbox[0][1]) to sort by top-most text
                 top_y = bbox[0][1]
                 valid_detections.append((top_y, text))
 
         if not valid_detections:
             return jsonify({'card_name': None})
 
-        # Sort by Y position to get the title
+        # Sort by Y position (top to bottom) to get the card title
         valid_detections.sort(key=lambda x: x[0])
+
+        # Take the top-most valid text as the name
         raw_name = valid_detections[0][1]
         cleaned_name = clean_name_for_api(raw_name)
 
+        logger.info(f"Extracted: {cleaned_name}")
         return jsonify({'card_name': cleaned_name})
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal Processing Error'}), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'up'}), 200
 
 if __name__ == '__main__':
-    # Run on localhost port 5000
-    app.run(host='127.0.0.1', port=5000)
+    # Use Waitress for production
+    port = 5000
+    logger.info(f"Starting OCR Server on port {port} using Waitress...")
+    serve(app, host='127.0.0.1', port=port, threads=4)

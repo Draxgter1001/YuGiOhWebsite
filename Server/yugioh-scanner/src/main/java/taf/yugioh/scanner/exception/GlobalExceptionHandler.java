@@ -1,5 +1,7 @@
 package taf.yugioh.scanner.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -14,6 +16,8 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     /**
      * Handle validation errors from @Valid annotations
      */
@@ -27,6 +31,9 @@ public class GlobalExceptionHandler {
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
+
+        // Warn level is sufficient for validation errors
+        logger.warn("Validation failed: {}", errors);
 
         ApiResponse<Map<String, String>> response = new ApiResponse<>(
                 false,
@@ -44,6 +51,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(
             IllegalArgumentException ex) {
 
+        logger.warn("Illegal argument: {}", ex.getMessage());
+
         return ResponseEntity.badRequest().body(
                 ApiResponse.error(ex.getMessage())
         );
@@ -54,9 +63,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
-        // Log the error (in production, use proper logging)
-        System.err.println("Runtime exception: " + ex.getMessage());
-        ex.printStackTrace();
+        // Log the full stack trace for internal debugging
+        logger.error("Runtime exception occurred:", ex);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ApiResponse.error("An unexpected error occurred")
@@ -68,9 +76,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
-        // Log the error (in production, use proper logging)
-        System.err.println("Exception: " + ex.getMessage());
-        ex.printStackTrace();
+        logger.error("Unhandled exception occurred:", ex);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                 ApiResponse.error("An unexpected error occurred")

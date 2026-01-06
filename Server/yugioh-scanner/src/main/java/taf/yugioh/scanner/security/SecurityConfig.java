@@ -33,37 +33,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Disable CSRF (we use JWT tokens)
                 .csrf(AbstractHttpConfigurer::disable)
-
-                // Configure CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // Set session management to stateless (JWT-based)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-
-                // Configure endpoint authorization
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - no authentication required
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/cards/**").permitAll()
-                        .requestMatchers("/api/images/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/cards/**", "/api/images/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/decks/public/**").permitAll()
-
-                        // Health check endpoints
                         .requestMatchers("/actuator/health").permitAll()
-
-                        // Protected endpoints - authentication required
-                        .requestMatchers("/api/decks/**").authenticated()
-                        .requestMatchers("/api/users/**").authenticated()
-
-                        // All other requests require authentication
                         .anyRequest().authenticated()
                 )
-
-                // Add JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -71,7 +49,6 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // BCrypt with strength 12 (good balance of security and performance)
         return new BCryptPasswordEncoder(12);
     }
 
@@ -79,36 +56,21 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Parse allowed origins from config
-        List<String> origins = Arrays.asList(allowedOrigins.split(","));
-        configuration.setAllowedOrigins(origins);
+        // Trim and split origins to handle potential spacing issues in Env Vars
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            String[] origins = allowedOrigins.split(",");
+            for (String origin : origins) {
+                configuration.addAllowedOrigin(origin.trim());
+            }
+        } else {
+            // Fallback or explicit denial if no origins set
+            configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+        }
 
-        // Allowed HTTP methods
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
-        ));
-
-        // Allowed headers
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "X-Requested-With",
-                "Accept",
-                "Origin",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
-        ));
-
-        // Exposed headers (headers the client can access)
-        configuration.setExposedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Disposition"
-        ));
-
-        // Allow credentials (cookies, authorization headers)
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
-
-        // How long the browser should cache the CORS config (1 hour)
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
