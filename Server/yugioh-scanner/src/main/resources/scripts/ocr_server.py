@@ -16,53 +16,21 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-def preprocess_image(image_path):
-    """
-    Advanced preprocessing to handle Holographic/Shiny Yu-Gi-Oh cards.
-    """
-    try:
-        img = cv2.imread(image_path)
-        if img is None: return None
-
-        # 1. Geometry: Crop to top 18% (Name Box) to exclude artwork noise
-        height, width = img.shape[:2]
-        header_crop = img[int(height*0.025):int(height*0.18), int(width*0.035):int(width*0.965)]
-
-        # 2. Convert to Grayscale
-        gray = cv2.cvtColor(header_crop, cv2.COLOR_BGR2GRAY)
-
-        # 3. GLARE REMOVAL (CLAHE) - Critical for Shiny Cards
-        # This equalizes light distribution, removing the "rainbow" reflection
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-        gray = clahe.apply(gray)
-
-        # 4. Resize: Scale up 2.5x to separate letters
-        # INTER_CUBIC is slower but builds better letter edges
-        scaled = cv2.resize(gray, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
-
-        # 5. Denoising: Remove "sparkles" from the foil texture
-        denoised = cv2.fastNlMeansDenoising(scaled, None, 10, 7, 21)
-
-        # 6. Thresholding: Binarize the text
-        _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        return thresh
-    except Exception as e:
-        logger.error(f"Preprocessing failed: {e}")
-        return None
-
+# ==========================================
+# HELPER: Text Cleaning
+# ==========================================
 def clean_name_for_api(text):
     if not text: return None
     import re
 
-    # Filter junk characters often found in noisy OCR
-    # We allow: Letters, Numbers, Spaces, Hyphens, Apostrophes
+    # Allow letters, numbers, spaces, apostrophes, hyphens
     cleaned = re.sub(r'[^\w\s\-\']', '', text)
     cleaned = ' '.join(cleaned.split())
 
+    # Heuristic: Card names are rarely super short
     if len(cleaned) < 3: return None
 
-    # Title Case restoration
+    # Title Case
     words = cleaned.split()
     capitalized_words = []
     small_words = {'the', 'of', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'from', 'with', 'by'}
@@ -76,6 +44,90 @@ def clean_name_for_api(text):
 
     return ' '.join(capitalized_words).strip()
 
+# ==========================================
+# METHOD 1: Anti-Glare (For Foil/Shiny Cards)
+# ==========================================
+def extract_with_glare_removal(image_path):
+    try:
+        img = cv2.imread(image_path)
+        if img is None: return None
+
+        # 1. Crop to top 20% (Header)
+        height, width = img.shape[:2]
+        header_crop = img[int(height*0.02):int(height*0.20), int(width*0.02):int(width*0.98)]
+
+        # 2. Glare Removal (CLAHE)
+        gray = cv2.cvtColor(header_crop, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        gray = clahe.apply(gray)
+
+        # 3. Resize & Denoise
+        scaled = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        denoised = cv2.fastNlMeansDenoising(scaled, None, 10, 7, 21)
+
+        # 4. Threshold (Otsu)
+        _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # 5. Extract (PSM 7 = Single Line)
+        raw_text = pytesseract.image_to_string(thresh, config='--psm 7')
+        return clean_name_for_api(raw_text)
+    except Exception as e:
+        logger.warning(f"Method 1 (Glare) failed: {e}")
+        return None
+
+# ==========================================
+# METHOD 2: Standard Sort (For Normal Cards)
+# ==========================================
+def extract_standard_sort(image_path):
+    try:
+        img = cv2.imread(image_path)
+        if img is None: return None
+
+        # 1. Standard Preprocessing
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Simple thresholding often works better for clear text
+        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+
+        # 2. Extract Data (Coordinates)
+        d = pytesseract.image_to_data(thresh, output_type=Output.DICT)
+
+        # 3. Group Lines & Find Top-Most
+        lines = {}
+        n_boxes = len(d['text'])
+
+        for i in range(n_boxes):
+            conf = int(d['conf'][i])
+            text = d['text'][i].strip()
+
+            # Lower confidence threshold for standard scan
+            if conf > 30 and len(text) > 1:
+                line_id = (d['block_num'][i], d['line_num'][i])
+                if line_id not in lines:
+                    lines[line_id] = {'text': [], 'top': d['top'][i]}
+
+                lines[line_id]['text'].append(text)
+                lines[line_id]['top'] = min(lines[line_id]['top'], d['top'][i])
+
+        candidates = []
+        for line_data in lines.values():
+            full_line = " ".join(line_data['text'])
+            cleaned = clean_name_for_api(full_line)
+            if cleaned:
+                candidates.append((line_data['top'], cleaned))
+
+        if not candidates: return None
+
+        # Sort by Y position (Top to Bottom)
+        candidates.sort(key=lambda x: x[0])
+        return candidates[0][1]
+
+    except Exception as e:
+        logger.warning(f"Method 2 (Standard) failed: {e}")
+        return None
+
+# ==========================================
+# MAIN ROUTE
+# ==========================================
 @app.route('/extract', methods=['POST'])
 def extract():
     try:
@@ -85,33 +137,25 @@ def extract():
         if not file_path or not os.path.exists(file_path):
             return jsonify({'error': 'File not found'}), 404
 
-        # 1. Advanced Preprocessing
-        processed_img = preprocess_image(file_path)
-        if processed_img is None:
-            return jsonify({'error': 'Could not process image'}), 500
+        # ATTEMPT 1: Anti-Glare (Best for Holographics)
+        logger.info("Attempting Method 1: Anti-Glare...")
+        card_name = extract_with_glare_removal(file_path)
 
-        # 2. Extract Data (Coordinates + Text)
-        # --psm 7 tells Tesseract to treat the image as a "Single Text Line"
-        # This prevents it from reading noise as separate lines
-        d = pytesseract.image_to_data(processed_img, config='--psm 7', output_type=Output.DICT)
+        if card_name:
+            logger.info(f"Method 1 Success: {card_name}")
+            return jsonify({'card_name': card_name})
 
-        # 3. Reconstruct the line with highest confidence
-        words = []
-        n_boxes = len(d['text'])
+        # ATTEMPT 2: Standard Fallback (Best for Normal Cards)
+        logger.info("Method 1 returned nothing. Attempting Method 2: Standard Sort...")
+        card_name = extract_standard_sort(file_path)
 
-        for i in range(n_boxes):
-            text = d['text'][i].strip()
-            conf = int(d['conf'][i])
+        if card_name:
+            logger.info(f"Method 2 Success: {card_name}")
+            return jsonify({'card_name': card_name})
 
-            # Confidence threshold > 40 helps ignore "sparkle" noise interpreted as text
-            if conf > 40 and len(text) > 1:
-                words.append(text)
-
-        raw_text = " ".join(words)
-        card_name = clean_name_for_api(raw_text)
-
-        logger.info(f"Raw: {raw_text} -> Extracted: {card_name}")
-        return jsonify({'card_name': card_name})
+        # Failure
+        logger.info("All OCR methods failed.")
+        return jsonify({'card_name': None})
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -119,9 +163,8 @@ def extract():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'up', 'engine': 'tesseract-clahe-optimized'}), 200
+    return jsonify({'status': 'up', 'engine': 'hybrid-fallback'}), 200
 
 if __name__ == '__main__':
     port = 5000
-    # Use 2 threads to save memory for image processing
     serve(app, host='127.0.0.1', port=port, threads=2)
