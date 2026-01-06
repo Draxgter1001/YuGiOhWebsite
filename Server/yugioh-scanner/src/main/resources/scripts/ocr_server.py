@@ -1,8 +1,7 @@
 import os
 import logging
-import cv2
-import numpy as np
 import pytesseract
+from PIL import Image
 from pytesseract import Output
 from flask import Flask, request, jsonify
 from waitress import serve
@@ -16,21 +15,20 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ==========================================
-# HELPER: Text Cleaning
-# ==========================================
-def clean_name_for_api(text):
-    if not text: return None
+def clean_name_for_api(card_name):
+    """
+    Cleans the extracted card name to match the format expected by your API.
+    """
+    if not card_name: return None
     import re
 
-    # Allow letters, numbers, spaces, apostrophes, hyphens
-    cleaned = re.sub(r'[^\w\s\-\']', '', text)
+    # Basic cleanup
+    cleaned = card_name.replace('|', 'I').replace('0', 'O')
     cleaned = ' '.join(cleaned.split())
+    cleaned = cleaned.replace('"', '').replace("'", "")
+    cleaned = re.sub(r'[^\w\s\-\']', '', cleaned)
 
-    # Heuristic: Card names are rarely super short
-    if len(cleaned) < 3: return None
-
-    # Title Case
+    # Title Case restoration
     words = cleaned.split()
     capitalized_words = []
     small_words = {'the', 'of', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'from', 'with', 'by'}
@@ -44,90 +42,6 @@ def clean_name_for_api(text):
 
     return ' '.join(capitalized_words).strip()
 
-# ==========================================
-# METHOD 1: Anti-Glare (For Foil/Shiny Cards)
-# ==========================================
-def extract_with_glare_removal(image_path):
-    try:
-        img = cv2.imread(image_path)
-        if img is None: return None
-
-        # 1. Crop to top 20% (Header)
-        height, width = img.shape[:2]
-        header_crop = img[int(height*0.02):int(height*0.20), int(width*0.02):int(width*0.98)]
-
-        # 2. Glare Removal (CLAHE)
-        gray = cv2.cvtColor(header_crop, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        gray = clahe.apply(gray)
-
-        # 3. Resize & Denoise
-        scaled = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-        denoised = cv2.fastNlMeansDenoising(scaled, None, 10, 7, 21)
-
-        # 4. Threshold (Otsu)
-        _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        # 5. Extract (PSM 7 = Single Line)
-        raw_text = pytesseract.image_to_string(thresh, config='--psm 7')
-        return clean_name_for_api(raw_text)
-    except Exception as e:
-        logger.warning(f"Method 1 (Glare) failed: {e}")
-        return None
-
-# ==========================================
-# METHOD 2: Standard Sort (For Normal Cards)
-# ==========================================
-def extract_standard_sort(image_path):
-    try:
-        img = cv2.imread(image_path)
-        if img is None: return None
-
-        # 1. Standard Preprocessing
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Simple thresholding often works better for clear text
-        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-
-        # 2. Extract Data (Coordinates)
-        d = pytesseract.image_to_data(thresh, output_type=Output.DICT)
-
-        # 3. Group Lines & Find Top-Most
-        lines = {}
-        n_boxes = len(d['text'])
-
-        for i in range(n_boxes):
-            conf = int(d['conf'][i])
-            text = d['text'][i].strip()
-
-            # Lower confidence threshold for standard scan
-            if conf > 30 and len(text) > 1:
-                line_id = (d['block_num'][i], d['line_num'][i])
-                if line_id not in lines:
-                    lines[line_id] = {'text': [], 'top': d['top'][i]}
-
-                lines[line_id]['text'].append(text)
-                lines[line_id]['top'] = min(lines[line_id]['top'], d['top'][i])
-
-        candidates = []
-        for line_data in lines.values():
-            full_line = " ".join(line_data['text'])
-            cleaned = clean_name_for_api(full_line)
-            if cleaned:
-                candidates.append((line_data['top'], cleaned))
-
-        if not candidates: return None
-
-        # Sort by Y position (Top to Bottom)
-        candidates.sort(key=lambda x: x[0])
-        return candidates[0][1]
-
-    except Exception as e:
-        logger.warning(f"Method 2 (Standard) failed: {e}")
-        return None
-
-# ==========================================
-# MAIN ROUTE
-# ==========================================
 @app.route('/extract', methods=['POST'])
 def extract():
     try:
@@ -137,25 +51,70 @@ def extract():
         if not file_path or not os.path.exists(file_path):
             return jsonify({'error': 'File not found'}), 404
 
-        # ATTEMPT 1: Anti-Glare (Best for Holographics)
-        logger.info("Attempting Method 1: Anti-Glare...")
-        card_name = extract_with_glare_removal(file_path)
+        # 1. Open Image (Using PIL as requested)
+        try:
+            image = Image.open(file_path)
+        except Exception as e:
+            return jsonify({'error': 'Invalid image'}), 400
 
-        if card_name:
-            logger.info(f"Method 1 Success: {card_name}")
-            return jsonify({'card_name': card_name})
+        # 2. Extract Data (Coordinates + Text)
+        # We use image_to_data to get the position (top/left) of every word
+        d = pytesseract.image_to_data(image, output_type=Output.DICT)
 
-        # ATTEMPT 2: Standard Fallback (Best for Normal Cards)
-        logger.info("Method 1 returned nothing. Attempting Method 2: Standard Sort...")
-        card_name = extract_standard_sort(file_path)
+        # 3. CRITICAL FIX: Group words into Lines
+        # Tesseract outputs separate words. We must group them by "Block" and "Line"
+        # so "Blue-Eyes", "White", and "Dragon" become one sentence.
+        lines = {}
+        n_boxes = len(d['text'])
 
-        if card_name:
-            logger.info(f"Method 2 Success: {card_name}")
-            return jsonify({'card_name': card_name})
+        for i in range(n_boxes):
+            # Check confidence (convert string to float safely)
+            try:
+                conf = float(d['conf'][i])
+            except:
+                conf = -1
 
-        # Failure
-        logger.info("All OCR methods failed.")
-        return jsonify({'card_name': None})
+            text = d['text'][i].strip()
+
+            # Filter low confidence trash
+            if conf > 40 and len(text) > 0:
+                # Group key: (Block Number, Line Number)
+                line_id = (d['block_num'][i], d['line_num'][i])
+
+                if line_id not in lines:
+                    lines[line_id] = {
+                        'text': [],
+                        'top': d['top'][i] # Y-position of this line
+                    }
+
+                lines[line_id]['text'].append(text)
+                # Keep the highest vertical position (smallest Y) for the line
+                if d['top'][i] < lines[line_id]['top']:
+                    lines[line_id]['top'] = d['top'][i]
+
+        # 4. Filter and Format Lines
+        valid_detections = []
+        for line_data in lines.values():
+            full_line = " ".join(line_data['text'])
+
+            # Apply your cleaning immediately to check if it's valid text
+            cleaned = clean_name_for_api(full_line)
+
+            if cleaned and len(cleaned) >= 3:
+                # Store (Y-Position, Cleaned Text)
+                valid_detections.append((line_data['top'], cleaned))
+
+        if not valid_detections:
+            return jsonify({'card_name': None})
+
+        # 5. Sort by Y-Position (Top to Bottom) - EXACTLY mimicking your original code
+        valid_detections.sort(key=lambda x: x[0])
+
+        # The first item is the text closest to the top of the image -> The Card Name
+        card_name = valid_detections[0][1]
+
+        logger.info(f"Top-most Line: {card_name}")
+        return jsonify({'card_name': card_name})
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -163,8 +122,10 @@ def extract():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'up', 'engine': 'hybrid-fallback'}), 200
+    return jsonify({'status': 'up', 'engine': 'tesseract-simple-sort'}), 200
 
 if __name__ == '__main__':
     port = 5000
-    serve(app, host='127.0.0.1', port=port, threads=2)
+    # Waitress is required for production stability
+    logger.info(f"Starting Production OCR Server on port {port}...")
+    serve(app, host='127.0.0.1', port=port, threads=4)
