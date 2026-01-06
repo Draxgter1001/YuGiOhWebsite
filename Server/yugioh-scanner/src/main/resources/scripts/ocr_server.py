@@ -19,8 +19,8 @@ app = Flask(__name__)
 def clean_name_for_api(text):
     if not text: return None
     import re
-    # Keep alphanumeric, spaces, hyphens, apostrophes, and ampersands
-    cleaned = re.sub(r'[^\w\s\-\'&]', '', text)
+    # Keep alphanumeric, spaces, hyphens, apostrophes
+    cleaned = re.sub(r'[^\w\s\-\']', '', text)
     cleaned = ' '.join(cleaned.split())
     if len(cleaned) < 3: return None
 
@@ -36,53 +36,49 @@ def clean_name_for_api(text):
             capitalized_words.append(word_lower)
     return ' '.join(capitalized_words).strip()
 
-def process_and_read(image_crop, mode):
-    """
-    Applies a filter and runs generic OCR (not line-restricted).
-    Returns the found text string.
-    """
+def process_super_res(image_path):
     try:
-        # 1. Convert to Gray
-        gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
+        img = cv2.imread(image_path)
+        if img is None: return []
 
-        # 2. Scale Up (3x) for readability
-        scaled = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+        height, width = img.shape[:2]
 
-        if mode == 'standard':
-            # Simple threshold
-            _, processed = cv2.threshold(scaled, 127, 255, cv2.THRESH_BINARY)
-        elif mode == 'clahe':
-            # Anti-Glare (High Contrast)
-            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-            processed = clahe.apply(scaled)
-            _, processed = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        elif mode == 'denoise':
-            # Remove "sparkles" (Slow but effective for foil)
-            processed = cv2.fastNlMeansDenoising(scaled, None, 10, 7, 21)
-            _, processed = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        elif mode == 'inverted':
-            # White text on dark card
-            _, processed = cv2.threshold(scaled, 127, 255, cv2.THRESH_BINARY)
-            processed = cv2.bitwise_not(processed)
-        else:
-            return None
+        # 1. CROP: Top 15% (Name Box Only)
+        header = img[int(height*0.015):int(height*0.16), int(width*0.02):int(width*0.90)]
 
-        # 3. Read Data (More robust than image_to_string)
-        # We assume PSM 6 (Assume a block of text) to catch disjointed words
-        d = pytesseract.image_to_data(processed, config='--psm 6', output_type=Output.DICT)
+        # 2. SUPER SCALE (5x) - Critical for Tesseract Accuracy
+        # Using INTER_CUBIC to smooth pixelation
+        scaled = cv2.resize(header, None, fx=5, fy=5, interpolation=cv2.INTER_CUBIC)
 
-        # 4. Reconstruct found words
-        found_words = []
-        n_boxes = len(d['text'])
-        for i in range(n_boxes):
-            # Confidence > 30 is low but lets us catch "faint" holographic text
-            if int(d['conf'][i]) > 30 and len(d['text'][i].strip()) > 1:
-                found_words.append(d['text'][i])
+        gray = cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
 
-        return " ".join(found_words)
+        processed_images = []
+
+        # Strategy A: Standard Threshold (For common cards)
+        # 100-255 range catches dark text on light backgrounds
+        _, thresh_std = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+        processed_images.append(thresh_std)
+
+        # Strategy B: DILATION (For Thin/Shiny Text)
+        # This "thickens" the letters so the foil reflection doesn't break them apart
+        kernel = np.ones((2,2), np.uint8)
+        dilated = cv2.erode(thresh_std, kernel, iterations=1) # Erode black text = thicken it
+        processed_images.append(dilated)
+
+        # Strategy C: INVERTED + GLARE REMOVAL (For "Rainbow" / Ghost Rares)
+        # 1. CLAHE to remove glare
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
+        no_glare = clahe.apply(gray)
+        # 2. Threshold
+        _, thresh_glare = cv2.threshold(no_glare, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # 3. Invert (Make letters white, background black) -> Tesseract reads this well
+        inverted = cv2.bitwise_not(thresh_glare)
+        processed_images.append(inverted)
+
+        return processed_images
     except Exception as e:
-        logger.warning(f"Strategy {mode} failed: {e}")
-        return ""
+        logger.error(f"Processing error: {e}")
+        return []
 
 @app.route('/extract', methods=['POST'])
 def extract():
@@ -93,39 +89,29 @@ def extract():
         if not file_path or not os.path.exists(file_path):
             return jsonify({'error': 'File not found'}), 404
 
-        img = cv2.imread(file_path)
-        if img is None: return jsonify({'error': 'Invalid image'}), 400
+        processed_variants = process_super_res(file_path)
 
-        height, width = img.shape[:2]
+        candidates = []
 
-        # 1. CROP HEADER (Top 18%)
-        # Slightly wider crop than before to ensure we don't cut tall letters
-        # Cut right side to avoid Attribute symbol noise
-        header = img[int(height*0.015):int(height*0.18), int(width*0.02):int(width*0.88)]
+        for i, img in enumerate(processed_variants):
+            # PSM 7: Single Line Mode (Since we cropped perfectly)
+            # PSM 6: Block Mode (Backup if crop isn't perfect)
+            for psm in [7, 6]:
+                raw_text = pytesseract.image_to_string(img, config=f'--psm {psm}').strip()
+                cleaned = clean_name_for_api(raw_text)
 
-        # 2. BRUTE FORCE STRATEGIES
-        # We run multiple visual filters and pick the longest valid text result.
-        # Shiny cards usually fail 'standard' but pass 'clahe' or 'denoise'.
-        strategies = ['standard', 'clahe', 'denoise', 'inverted']
+                if cleaned:
+                    logger.info(f"Strategy {i} (PSM {psm}) found: {cleaned}")
+                    candidates.append(cleaned)
 
-        best_candidate = ""
-
-        for mode in strategies:
-            raw_text = process_and_read(header, mode)
-            cleaned = clean_name_for_api(raw_text)
-
-            if cleaned:
-                logger.info(f"Strategy '{mode}' found: {cleaned}")
-                # Heuristic: The longest extracted string is usually the correct full name
-                # (prevents "Dragon" from beating "Rainbow Overdragon")
-                if len(cleaned) > len(best_candidate):
-                    best_candidate = cleaned
-
-        if best_candidate:
-            return jsonify({'card_name': best_candidate})
-        else:
-            logger.warning("All strategies failed to find text in header.")
+        if not candidates:
+            logger.warning("No text found in header.")
             return jsonify({'card_name': None})
+
+        # Heuristic: Pick the longest valid name extracted
+        best_match = max(candidates, key=len)
+
+        return jsonify({'card_name': best_match})
 
     except Exception as e:
         logger.error(f"Error: {str(e)}")
@@ -133,7 +119,7 @@ def extract():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'up', 'engine': 'tesseract-multi-strat'}), 200
+    return jsonify({'status': 'up', 'engine': 'tesseract-super-res'}), 200
 
 if __name__ == '__main__':
     port = 5000

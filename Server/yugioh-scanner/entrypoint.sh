@@ -2,57 +2,50 @@
 set -e
 
 echo "----------------------------------------"
-echo "Starting Yu-Gi-Oh Scanner Container"
+echo "Starting Yu-Gi-Oh Scanner (Pure Java)"
 echo "----------------------------------------"
 
 # ==============================================================================
-# 1. FIX DATABASE URL (Robust Parsing)
+# 1. FIX DATABASE URL (Bash Version)
 # ==============================================================================
+# Since we removed Python from this image to save space, we parse the URL using Bash.
 if [ -n "$DATABASE_URL" ]; then
-    echo "Detected Heroku DATABASE_URL. Parsing credentials..."
+    echo "Detected Heroku DATABASE_URL. Converting to JDBC format..."
 
-    # Use Python to parse the URL correctly into JDBC format + User + Pass
-    eval $(python3 -c '
-import os
-from urllib.parse import urlparse
+    # Format: postgres://user:password@host:port/dbname
 
-try:
-    url = urlparse(os.environ["DATABASE_URL"])
-    # Construct proper JDBC URL with SSL enabled (Required for Heroku)
-    jdbc_url = f"jdbc:postgresql://{url.hostname}:{url.port}{url.path}?sslmode=require"
+    # Remove 'postgres://' prefix
+    clean_url=${DATABASE_URL#"postgres://"}
 
-    print(f"export SPRING_DATASOURCE_URL=\"{jdbc_url}\"")
-    print(f"export SPRING_DATASOURCE_USERNAME=\"{url.username}\"")
-    print(f"export SPRING_DATASOURCE_PASSWORD=\"{url.password}\"")
-except Exception as e:
-    print("echo Error parsing DATABASE_URL")
-')
+    # Extract user:password string
+    user_pass=${clean_url%%@*}
+
+    # Extract user and password
+    user=${user_pass%%:*}
+    pass=${user_pass#*:}
+
+    # Extract host:port/dbname string
+    host_db=${clean_url#*@}
+
+    # Extract host:port and dbname
+    host_port=${host_db%%/*}
+    dbname=${host_db#*/}
+
+    # Export variables for Spring Boot
+    export SPRING_DATASOURCE_URL="jdbc:postgresql://${host_port}/${dbname}?sslmode=require"
+    export SPRING_DATASOURCE_USERNAME="${user}"
+    export SPRING_DATASOURCE_PASSWORD="${pass}"
+
+    echo "Database Configured successfully."
 else
     echo "No DATABASE_URL found. Assuming local development."
 fi
 
 # ==============================================================================
-# 2. START PYTHON OCR
-# ==============================================================================
-echo "Starting Tesseract OCR Server..."
-python3 scripts/ocr_server.py &
-PYTHON_PID=$!
-sleep 3
-
-if ps -p $PYTHON_PID > /dev/null
-then
-   echo "Python OCR Server is running (PID: $PYTHON_PID)."
-else
-   echo "Error: Python OCR Server failed to start."
-   exit 1
-fi
-
-echo "----------------------------------------"
-
-# ==============================================================================
-# 3. START JAVA
+# 2. START JAVA
 # ==============================================================================
 echo "Starting Spring Boot Application..."
 
-# -Xmx350m: We can now afford 350MB for Java because Tesseract is lightweight.
-exec java -Xmx350m -XX:+UseSerialGC -jar app.jar
+# -Xmx400m: We can now give almost all 512MB RAM to Java because
+# there is no Python OCR server running alongside it.
+exec java -Xmx400m -XX:+UseSerialGC -jar app.jar
