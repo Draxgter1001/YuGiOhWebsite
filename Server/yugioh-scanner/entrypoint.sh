@@ -6,25 +6,38 @@ echo "Starting Yu-Gi-Oh Scanner Container"
 echo "----------------------------------------"
 
 # ==============================================================================
-# 1. FIX DATABASE URL
+# 1. FIX DATABASE URL (Robust Parsing)
 # ==============================================================================
-# Heroku provides DATABASE_URL as "postgres://...", but JDBC needs "jdbc:postgresql://..."
-# We create a new env var SPRING_DATASOURCE_URL that Spring Boot picks up automatically.
 if [ -n "$DATABASE_URL" ]; then
-    echo "Detected Heroku DATABASE_URL. converting to JDBC format..."
-    # Replace 'postgres://' with 'jdbc:postgresql://'
-    export SPRING_DATASOURCE_URL="${DATABASE_URL/postgres:\/\//jdbc:postgresql:\/\/}"
+    echo "Detected Heroku DATABASE_URL. Parsing credentials..."
+
+    # Use Python to parse the URL correctly into JDBC format + User + Pass
+    eval $(python3 -c '
+import os
+from urllib.parse import urlparse
+
+try:
+    url = urlparse(os.environ["DATABASE_URL"])
+    # Construct proper JDBC URL with SSL enabled (Required for Heroku)
+    jdbc_url = f"jdbc:postgresql://{url.hostname}:{url.port}{url.path}?sslmode=require"
+
+    print(f"export SPRING_DATASOURCE_URL=\"{jdbc_url}\"")
+    print(f"export SPRING_DATASOURCE_USERNAME=\"{url.username}\"")
+    print(f"export SPRING_DATASOURCE_PASSWORD=\"{url.password}\"")
+except Exception as e:
+    print("echo Error parsing DATABASE_URL")
+')
 else
-    echo "No DATABASE_URL found. Assuming local development or POSTGRES_DATABASE_URL is set."
+    echo "No DATABASE_URL found. Assuming local development."
 fi
 
 # ==============================================================================
 # 2. START PYTHON OCR
 # ==============================================================================
-echo "Starting Python OCR Server..."
+echo "Starting Tesseract OCR Server..."
 python3 scripts/ocr_server.py &
 PYTHON_PID=$!
-sleep 5
+sleep 3
 
 if ps -p $PYTHON_PID > /dev/null
 then
@@ -37,9 +50,9 @@ fi
 echo "----------------------------------------"
 
 # ==============================================================================
-# 3. START JAVA (With Memory Limits)
+# 3. START JAVA
 # ==============================================================================
 echo "Starting Spring Boot Application..."
 
-# -Xmx300m: Limits Java Heap to 300MB (prevents Error R14 crashes)
-exec java -Xmx300m -XX:+UseSerialGC -jar app.jar
+# -Xmx350m: We can now afford 350MB for Java because Tesseract is lightweight.
+exec java -Xmx350m -XX:+UseSerialGC -jar app.jar
