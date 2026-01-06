@@ -18,17 +18,33 @@ app = Flask(__name__)
 
 def preprocess_image(image_path):
     """
-    Standard preprocessing to make text stand out.
+    Advanced preprocessing to handle Holographic/Shiny Yu-Gi-Oh cards.
     """
     try:
         img = cv2.imread(image_path)
         if img is None: return None
 
-        # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # 1. Geometry: Crop to top 18% (Name Box) to exclude artwork noise
+        height, width = img.shape[:2]
+        header_crop = img[int(height*0.025):int(height*0.18), int(width*0.035):int(width*0.965)]
 
-        # Otsu's thresholding (Automatic black/white contrast)
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # 2. Convert to Grayscale
+        gray = cv2.cvtColor(header_crop, cv2.COLOR_BGR2GRAY)
+
+        # 3. GLARE REMOVAL (CLAHE) - Critical for Shiny Cards
+        # This equalizes light distribution, removing the "rainbow" reflection
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+        gray = clahe.apply(gray)
+
+        # 4. Resize: Scale up 2.5x to separate letters
+        # INTER_CUBIC is slower but builds better letter edges
+        scaled = cv2.resize(gray, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
+
+        # 5. Denoising: Remove "sparkles" from the foil texture
+        denoised = cv2.fastNlMeansDenoising(scaled, None, 10, 7, 21)
+
+        # 6. Thresholding: Binarize the text
+        _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         return thresh
     except Exception as e:
@@ -36,20 +52,17 @@ def preprocess_image(image_path):
         return None
 
 def clean_name_for_api(text):
-    """
-    Same cleaning logic as your original script to ensure database matches.
-    """
     if not text: return None
     import re
 
-    # 1. Basic cleanup
-    cleaned = text.replace('|', 'I').replace('0', 'O')
-    cleaned = re.sub(r'[^\w\s\-\']', '', cleaned)
+    # Filter junk characters often found in noisy OCR
+    # We allow: Letters, Numbers, Spaces, Hyphens, Apostrophes
+    cleaned = re.sub(r'[^\w\s\-\']', '', text)
     cleaned = ' '.join(cleaned.split())
 
     if len(cleaned) < 3: return None
 
-    # 2. Smart Capitalization (from your original script)
+    # Title Case restoration
     words = cleaned.split()
     capitalized_words = []
     small_words = {'the', 'of', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'from', 'with', 'by'}
@@ -72,61 +85,33 @@ def extract():
         if not file_path or not os.path.exists(file_path):
             return jsonify({'error': 'File not found'}), 404
 
-        # 1. Preprocess
+        # 1. Advanced Preprocessing
         processed_img = preprocess_image(file_path)
         if processed_img is None:
             return jsonify({'error': 'Could not process image'}), 500
 
         # 2. Extract Data (Coordinates + Text)
-        # output_type=Output.DICT gives us: 'text', 'top', 'conf', 'line_num', etc.
-        d = pytesseract.image_to_data(processed_img, output_type=Output.DICT)
+        # --psm 7 tells Tesseract to treat the image as a "Single Text Line"
+        # This prevents it from reading noise as separate lines
+        d = pytesseract.image_to_data(processed_img, config='--psm 7', output_type=Output.DICT)
 
-        # 3. Reconstruct Lines with Coordinates
-        # Tesseract gives words; we need to group them into lines to find the "Title Line"
-        lines = {}
+        # 3. Reconstruct the line with highest confidence
+        words = []
         n_boxes = len(d['text'])
 
         for i in range(n_boxes):
-            # Filter low confidence or empty text
-            conf = int(d['conf'][i])
             text = d['text'][i].strip()
+            conf = int(d['conf'][i])
 
+            # Confidence threshold > 40 helps ignore "sparkle" noise interpreted as text
             if conf > 40 and len(text) > 1:
-                # Group by 'block_num' and 'line_num' to reconstruct the sentence
-                line_id = (d['block_num'][i], d['line_num'][i])
+                words.append(text)
 
-                if line_id not in lines:
-                    lines[line_id] = {
-                        'text': [],
-                        'top': d['top'][i], # Y-coordinate of the line
-                        'height': d['height'][i]
-                    }
+        raw_text = " ".join(words)
+        card_name = clean_name_for_api(raw_text)
 
-                lines[line_id]['text'].append(text)
-                # Keep the minimum Y coordinate for the line (closest to top)
-                lines[line_id]['top'] = min(lines[line_id]['top'], d['top'][i])
-
-        # 4. Find the Valid Title
-        candidates = []
-        for line_data in lines.values():
-            full_line_text = " ".join(line_data['text'])
-            clean_text = clean_name_for_api(full_line_text)
-
-            if clean_text:
-                # Store (Y-Position, Cleaned Text)
-                candidates.append((line_data['top'], clean_text))
-
-        if not candidates:
-            return jsonify({'card_name': None})
-
-        # 5. Sort by Y-Position (Top to Bottom) - EXACTLY like your original code
-        candidates.sort(key=lambda x: x[0])
-
-        # The first item is the text closest to the top of the image -> The Card Name
-        best_match = candidates[0][1]
-
-        logger.info(f"Top-most text found: {best_match}")
-        return jsonify({'card_name': best_match})
+        logger.info(f"Raw: {raw_text} -> Extracted: {card_name}")
+        return jsonify({'card_name': card_name})
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -134,9 +119,9 @@ def extract():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'up', 'engine': 'tesseract-coord-sort'}), 200
+    return jsonify({'status': 'up', 'engine': 'tesseract-clahe-optimized'}), 200
 
 if __name__ == '__main__':
     port = 5000
-    logger.info(f"Starting OCR Server on port {port}...")
-    serve(app, host='127.0.0.1', port=port, threads=4)
+    # Use 2 threads to save memory for image processing
+    serve(app, host='127.0.0.1', port=port, threads=2)
