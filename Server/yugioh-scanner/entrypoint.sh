@@ -5,18 +5,27 @@ echo "----------------------------------------"
 echo "Starting Yu-Gi-Oh Scanner Container"
 echo "----------------------------------------"
 
-# 1. Start the Python OCR Server in the background
+# ==============================================================================
+# 1. FIX DATABASE URL
+# ==============================================================================
+# Heroku provides DATABASE_URL as "postgres://...", but JDBC needs "jdbc:postgresql://..."
+# We create a new env var SPRING_DATASOURCE_URL that Spring Boot picks up automatically.
+if [ -n "$DATABASE_URL" ]; then
+    echo "Detected Heroku DATABASE_URL. converting to JDBC format..."
+    # Replace 'postgres://' with 'jdbc:postgresql://'
+    export SPRING_DATASOURCE_URL="${DATABASE_URL/postgres:\/\//jdbc:postgresql:\/\/}"
+else
+    echo "No DATABASE_URL found. Assuming local development or POSTGRES_DATABASE_URL is set."
+fi
+
+# ==============================================================================
+# 2. START PYTHON OCR
+# ==============================================================================
 echo "Starting Python OCR Server..."
-# The virtual env path is already in $PATH from Dockerfile
 python3 scripts/ocr_server.py &
-
-# Save the PID of the python process
 PYTHON_PID=$!
-
-# Wait a few seconds to ensure Python starts (optional but safer)
 sleep 5
 
-# Check if Python is still running
 if ps -p $PYTHON_PID > /dev/null
 then
    echo "Python OCR Server is running (PID: $PYTHON_PID)."
@@ -27,7 +36,10 @@ fi
 
 echo "----------------------------------------"
 
-# 2. Start the Spring Boot Application
+# ==============================================================================
+# 3. START JAVA (With Memory Limits)
+# ==============================================================================
 echo "Starting Spring Boot Application..."
-# JAVA_OPTS can be used to pass memory limits from Heroku
-exec java -jar app.jar
+
+# -Xmx300m: Limits Java Heap to 300MB (prevents Error R14 crashes)
+exec java -Xmx300m -XX:+UseSerialGC -jar app.jar
