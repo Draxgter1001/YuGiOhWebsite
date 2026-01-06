@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-def preprocess_image(image_path):
+def preprocess_for_title(image_path):
     """
-    Prepares image for Tesseract to improve accuracy.
-    Converts to grayscale and applies thresholding.
+    Crops the image to just the top header (where the name is)
+    and applies heavy contrast to isolate text.
     """
     try:
         # Read image
@@ -26,12 +26,21 @@ def preprocess_image(image_path):
         if img is None:
             return None
 
-        # Convert to gray
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # 1. Geometry: Crop to top 15% of the card (The layout is standard)
+        height, width = img.shape[:2]
+        # Crop top 15% (Name Box)
+        # We also crop a tiny bit from left/right/top to remove borders
+        header_crop = img[int(height*0.02):int(height*0.15), int(width*0.02):int(width*0.98)]
 
-        # Apply simple thresholding to make text pop black-on-white
-        # This helps Tesseract read card titles clearly
-        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+        # 2. Convert to Gray
+        gray = cv2.cvtColor(header_crop, cv2.COLOR_BGR2GRAY)
+
+        # 3. Scaling: Double the size (Tesseract loves big text)
+        scaled = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+        # 4. Thresholding: Make text BLACK and background WHITE (or inverse)
+        # Otsu's binarization automatically finds the best separation
+        _, thresh = cv2.threshold(scaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         return thresh
     except Exception as e:
@@ -42,13 +51,12 @@ def clean_name_for_api(text):
     if not text: return None
     import re
 
-    # Remove special chars but keep spaces and apostrophes
+    # Keep alphanumeric, spaces, and specific Yu-Gi-Oh chars like apostrophes
     cleaned = re.sub(r'[^\w\s\-\']', '', text)
-    # Collapse multiple spaces
     cleaned = ' '.join(cleaned.split())
 
-    # Heuristic: Card names are rarely longer than 50 chars or shorter than 3
-    if len(cleaned) < 3 or len(cleaned) > 60:
+    # Filter out garbage noise (too short)
+    if len(cleaned) < 2:
         return None
 
     return cleaned.strip()
@@ -62,29 +70,21 @@ def extract():
         if not file_path or not os.path.exists(file_path):
             return jsonify({'error': 'File not found'}), 404
 
-        # 1. Preprocess
-        processed_img = preprocess_image(file_path)
+        # 1. Preprocess (Crop to Title + Threshold)
+        processed_img = preprocess_for_title(file_path)
         if processed_img is None:
             return jsonify({'error': 'Could not process image'}), 500
 
         # 2. Extract Text using Tesseract
-        # --psm 6 assumes a single uniform block of text (good for card titles if cropped,
-        # but we use --psm 3 for fully automatic page segmentation)
-        raw_text = pytesseract.image_to_string(processed_img, config='--psm 3')
+        # --psm 7: Treat the image as a single text line (Since we cropped it)
+        # This is CRITICAL. It tells Tesseract "Don't look for paragraphs, just read this one line".
+        raw_text = pytesseract.image_to_string(processed_img, config='--psm 7')
 
-        # 3. Parse result
-        lines = raw_text.split('\n')
-        candidates = []
+        # 3. Clean result
+        card_name = clean_name_for_api(raw_text)
 
-        for line in lines:
-            cleaned = clean_name_for_api(line)
-            if cleaned:
-                candidates.append(cleaned)
+        logger.info(f"Raw OCR: {raw_text.strip()} -> Extracted: {card_name}")
 
-        # Heuristic: The card title is usually the first valid text line detected at the top
-        card_name = candidates[0] if candidates else None
-
-        logger.info(f"Extracted: {card_name}")
         return jsonify({'card_name': card_name})
 
     except Exception as e:
@@ -93,9 +93,9 @@ def extract():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'up', 'engine': 'tesseract'}), 200
+    return jsonify({'status': 'up', 'engine': 'tesseract-cropped'}), 200
 
 if __name__ == '__main__':
     port = 5000
-    logger.info(f"Starting Tesseract OCR Server on port {port}...")
+    logger.info(f"Starting Smart-Crop OCR Server on port {port}...")
     serve(app, host='127.0.0.1', port=port, threads=4)
