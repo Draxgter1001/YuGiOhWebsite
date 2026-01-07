@@ -19,7 +19,7 @@ import {
     DollarSign,
 } from 'lucide-react';
 import Header from '../components/Header';
-import { DeckPriceDisplay, CompactPriceDisplay } from './PriceDisplay';
+import { DeckPriceDisplay, CompactPriceDisplay } from '../components/PriceDisplay';
 
 const DeckBuilderPage = () => {
     const { deckId } = useParams();

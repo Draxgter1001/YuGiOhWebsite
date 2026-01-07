@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Disc, Loader2, Eye, EyeOff, User, Lock } from 'lucide-react';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -31,7 +31,7 @@ const LoginPage = () => {
             if (result.success) {
                 navigate('/');
             } else {
-                setError(result.message || 'Login failed. Please try again.');
+                setError(result.message || 'Invalid username or password');
             }
         } catch (err) {
             setError('An error occurred. Please try again.');
@@ -46,11 +46,11 @@ const LoginPage = () => {
                 <div className="auth-header">
                     <Link to="/" className="auth-logo-link">
                         <div className="auth-logo">
-                            <Sparkles size={32} />
+                            <Disc size={32} />
                         </div>
                     </Link>
                     <h1>Welcome Back</h1>
-                    <p>Sign in to your Yu-Gi-Oh! Scanner account</p>
+                    <p>Sign in to your DuelDiskScan account</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="auth-form">
@@ -58,35 +58,42 @@ const LoginPage = () => {
 
                     <div className="form-group">
                         <label htmlFor="usernameOrEmail">Username or Email</label>
-                        <input
-                            type="text"
-                            id="usernameOrEmail"
-                            name="usernameOrEmail"
-                            value={formData.usernameOrEmail}
-                            onChange={handleChange}
-                            placeholder="Enter your username or email"
-                            required
-                            disabled={isLoading}
-                        />
+                        <div className="input-with-icon">
+                            <User size={18} className="input-icon" />
+                            <input
+                                type="text"
+                                id="usernameOrEmail"
+                                name="usernameOrEmail"
+                                value={formData.usernameOrEmail}
+                                onChange={handleChange}
+                                placeholder="Enter your username or email"
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
                     </div>
 
                     <div className="form-group">
                         <label htmlFor="password">Password</label>
                         <div className="password-input-wrapper">
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                id="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                placeholder="Enter your password"
-                                required
-                                disabled={isLoading}
-                            />
+                            <div className="input-with-icon">
+                                <Lock size={18} className="input-icon" />
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    id="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="Enter your password"
+                                    required
+                                    disabled={isLoading}
+                                />
+                            </div>
                             <button
                                 type="button"
                                 className="password-toggle"
                                 onClick={() => setShowPassword(!showPassword)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>

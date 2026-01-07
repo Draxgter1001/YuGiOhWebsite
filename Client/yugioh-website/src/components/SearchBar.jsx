@@ -1,62 +1,68 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, Loader2, AlertCircle } from 'lucide-react';
 import { apiService } from '../services/api';
 
 const SearchBar = ({ onSearch }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
-  const dropdownRef = useRef(null);
   const inputRef = useRef(null);
-  const debounceTimer = useRef(null);
+  const dropdownRef = useRef(null);
+  const debounceRef = useRef(null);
 
-  // Fetch autocomplete suggestions when user types
-  useEffect(() => {
-    // Clear previous timer
-    if (debounceTimer.current) {
-      clearTimeout(debounceTimer.current);
-    }
-
-    // Don't search if less than 2 characters
-    if (searchTerm.trim().length < 2) {
+  // Fetch autocomplete suggestions
+  const fetchSuggestions = useCallback(async (query) => {
+    if (query.length < 2) {
       setSuggestions([]);
-      setShowDropdown(false);
+      setShowSuggestions(false);
       return;
     }
 
-    // Debounce API calls (wait 300ms after user stops typing)
-    debounceTimer.current = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const response = await apiService.autocompleteCards(searchTerm.trim(), 10);
-        if (response.success && response.data) {
-          setSuggestions(response.data);
-          setShowDropdown(response.data.length > 0);
-          setSelectedIndex(-1);
-        }
-      } catch (err) {
-        console.error('Autocomplete error:', err);
-        setSuggestions([]);
-      } finally {
-        setIsLoading(false);
-      }
+    setIsLoadingSuggestions(true);
+    try {
+      const results = await apiService.autocompleteCard(query);
+      setSuggestions(results || []);
+      setShowSuggestions(true);
+    } catch (err) {
+      setSuggestions([]);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      fetchSuggestions(searchTerm);
     }, 300);
 
     return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
       }
     };
-  }, [searchTerm]);
+  }, [searchTerm, fetchSuggestions]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowDropdown(false);
+    const handleClickOutside = (e) => {
+      if (
+          dropdownRef.current &&
+          !dropdownRef.current.contains(e.target) &&
+          !inputRef.current.contains(e.target)
+      ) {
+        setShowSuggestions(false);
       }
     };
 
@@ -64,11 +70,39 @@ const SearchBar = ({ onSearch }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle keyboard navigation
+  const handleSearch = async (cardName = searchTerm) => {
+    if (!cardName.trim()) return;
+
+    setError(null);
+    setIsSearching(true);
+    setShowSuggestions(false);
+
+    try {
+      const card = await apiService.searchCard(cardName);
+      if (card) {
+        onSearch(card);
+        setSearchTerm('');
+      } else {
+        setError('Card not found. Try a different name.');
+      }
+    } catch (err) {
+      setError('Card not found. Try a different name.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    setSearchTerm(suggestion.name);
+    setShowSuggestions(false);
+    setSelectedIndex(-1);
+    handleSearch(suggestion.name);
+  };
+
   const handleKeyDown = (e) => {
-    if (!showDropdown || suggestions.length === 0) {
+    if (!showSuggestions || suggestions.length === 0) {
       if (e.key === 'Enter') {
-        handleManualSearch();
+        handleSearch();
       }
       return;
     }
@@ -76,24 +110,24 @@ const SearchBar = ({ onSearch }) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex((prev) =>
+        setSelectedIndex(prev =>
             prev < suggestions.length - 1 ? prev + 1 : prev
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
         break;
       case 'Enter':
         e.preventDefault();
         if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-          handleSelectCard(suggestions[selectedIndex]);
-        } else if (suggestions.length > 0) {
-          handleSelectCard(suggestions[0]);
+          handleSelectSuggestion(suggestions[selectedIndex]);
+        } else {
+          handleSearch();
         }
         break;
       case 'Escape':
-        setShowDropdown(false);
+        setShowSuggestions(false);
         setSelectedIndex(-1);
         break;
       default:
@@ -101,140 +135,92 @@ const SearchBar = ({ onSearch }) => {
     }
   };
 
-  // Select a card from dropdown
-  const handleSelectCard = (card) => {
-    setSearchTerm(card.name);
-    setShowDropdown(false);
-    setSuggestions([]);
+  const handleChange = (e) => {
+    setError(null);
+    setSearchTerm(e.target.value);
     setSelectedIndex(-1);
-    onSearch(card);
-  };
-
-  // Manual search (pressing search button)
-  const handleManualSearch = async () => {
-    if (!searchTerm.trim()) return;
-
-    // If there are suggestions and one is selected, use that
-    if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-      handleSelectCard(suggestions[selectedIndex]);
-      return;
-    }
-
-    // Otherwise, try to get the first suggestion or search directly
-    if (suggestions.length > 0) {
-      handleSelectCard(suggestions[0]);
-    } else {
-      // Fallback to exact search
-      setIsLoading(true);
-      try {
-        const response = await apiService.searchCard(searchTerm.trim());
-        if (response.success && response.data) {
-          onSearch(response.data);
-          setShowDropdown(false);
-        }
-      } catch (err) {
-        console.error('Search error:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  // Clear search input
-  const handleClear = () => {
-    setSearchTerm('');
-    setSuggestions([]);
-    setShowDropdown(false);
-    setSelectedIndex(-1);
-    inputRef.current?.focus();
-  };
-
-  // Handle input focus
-  const handleFocus = () => {
-    if (suggestions.length > 0) {
-      setShowDropdown(true);
-    }
   };
 
   return (
-      <div className="search-bar-container" ref={dropdownRef}>
+      <div className="search-bar-container">
         <div className="search-bar-wrapper">
           <input
               ref={inputRef}
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onFocus={handleFocus}
-              placeholder="Search for a card..."
+              onFocus={() => {
+                if (suggestions.length > 0) {
+                  setShowSuggestions(true);
+                }
+              }}
+              placeholder="Search for a card by name..."
               className="search-input"
+              disabled={isSearching}
               autoComplete="off"
           />
-
-          {/* Clear button */}
-          {searchTerm && (
-              <button
-                  className="search-clear-btn"
-                  onClick={handleClear}
-                  type="button"
-              >
-                <X size={18} />
-              </button>
-          )}
-
-          {/* Search button */}
           <button
-              onClick={handleManualSearch}
-              disabled={isLoading || !searchTerm.trim()}
+              onClick={() => handleSearch()}
+              disabled={isSearching || !searchTerm.trim()}
               className="search-button"
+              aria-label="Search"
           >
-            {isLoading ? (
-                <Loader2 className="search-spinner" />
+            {isSearching ? (
+                <Loader2 className="search-spinner" size={20} />
             ) : (
-                <Search className="search-icon" />
+                <Search className="search-icon" size={20} />
             )}
           </button>
+
+          {/* Autocomplete Dropdown */}
+          {showSuggestions && (
+              <div ref={dropdownRef} className="autocomplete-dropdown">
+                {isLoadingSuggestions ? (
+                    <div className="autocomplete-loading">
+                      <Loader2 className="spin" size={16} />
+                      <span>Searching...</span>
+                    </div>
+                ) : suggestions.length > 0 ? (
+                    suggestions.map((suggestion, index) => (
+                        <div
+                            key={suggestion.id}
+                            className={`autocomplete-item ${index === selectedIndex ? 'selected' : ''}`}
+                            onClick={() => handleSelectSuggestion(suggestion)}
+                            onMouseEnter={() => setSelectedIndex(index)}
+                        >
+                          {suggestion.imageUrlSmall && (
+                              <img
+                                  src={suggestion.imageUrlSmall}
+                                  alt=""
+                                  className="autocomplete-thumb"
+                                  loading="lazy"
+                              />
+                          )}
+                          <div className="autocomplete-info">
+                            <div className="autocomplete-name">{suggestion.name}</div>
+                            {suggestion.type && (
+                                <div className="autocomplete-type">{suggestion.type}</div>
+                            )}
+                          </div>
+                        </div>
+                    ))
+                ) : searchTerm.length >= 2 ? (
+                    <div className="autocomplete-empty">No cards found</div>
+                ) : null}
+              </div>
+          )}
         </div>
 
-        {/* Autocomplete Dropdown */}
-        {showDropdown && suggestions.length > 0 && (
-            <div className="search-dropdown">
-              {suggestions.map((card, index) => (
-                  <div
-                      key={card.id}
-                      className={`search-dropdown-item ${index === selectedIndex ? 'selected' : ''}`}
-                      onClick={() => handleSelectCard(card)}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                  >
-                    <img
-                        src={card.imageUrlSmall || card.imageUrl}
-                        alt={card.name}
-                        className="dropdown-card-image"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                    />
-                    <div className="dropdown-card-info">
-                      <span className="dropdown-card-name">{card.name}</span>
-                      <span className="dropdown-card-type">{card.type}</span>
-                    </div>
-                  </div>
-              ))}
+        {error && (
+            <div className="search-error-message">
+              <AlertCircle size={16} />
+              <span>{error}</span>
             </div>
         )}
 
-        {/* Loading indicator in dropdown */}
-        {isLoading && searchTerm.length >= 2 && (
-            <div className="search-dropdown">
-              <div className="search-dropdown-loading">
-                <Loader2 className="search-spinner" size={20} />
-                <span>Searching...</span>
-              </div>
-            </div>
-        )}
-
-        <p className="search-hint">
-          Start typing to see suggestions (min. 2 characters)
+        <p className="search-disclaimer">
+          Start typing to see suggestions, or enter a card name and press Enter.
         </p>
       </div>
   );

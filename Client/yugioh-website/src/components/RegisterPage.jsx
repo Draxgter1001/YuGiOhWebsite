@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
+import { Disc, Loader2, Eye, EyeOff, Check, X, User, Mail, Lock } from 'lucide-react';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
@@ -82,11 +82,11 @@ const RegisterPage = () => {
                 <div className="auth-header">
                     <Link to="/" className="auth-logo-link">
                         <div className="auth-logo">
-                            <Sparkles size={32} />
+                            <Disc size={32} />
                         </div>
                     </Link>
                     <h1>Create Account</h1>
-                    <p>Join Yu-Gi-Oh! Scanner and build your decks</p>
+                    <p>Join DuelDiskScan and build your decks</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="auth-form">
@@ -94,51 +94,61 @@ const RegisterPage = () => {
 
                     <div className="form-group">
                         <label htmlFor="username">Username</label>
-                        <input
-                            type="text"
-                            id="username"
-                            name="username"
-                            value={formData.username}
-                            onChange={handleChange}
-                            placeholder="Choose a username"
-                            required
-                            disabled={isLoading}
-                            minLength={3}
-                            maxLength={20}
-                        />
+                        <div className="input-with-icon">
+                            <User size={18} className="input-icon" />
+                            <input
+                                type="text"
+                                id="username"
+                                name="username"
+                                value={formData.username}
+                                onChange={handleChange}
+                                placeholder="Choose a username"
+                                required
+                                disabled={isLoading}
+                                minLength={3}
+                                maxLength={20}
+                            />
+                        </div>
                     </div>
 
                     <div className="form-group">
                         <label htmlFor="email">Email</label>
-                        <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            placeholder="Enter your email"
-                            required
-                            disabled={isLoading}
-                        />
+                        <div className="input-with-icon">
+                            <Mail size={18} className="input-icon" />
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                placeholder="Enter your email"
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
                     </div>
 
                     <div className="form-group">
                         <label htmlFor="password">Password</label>
                         <div className="password-input-wrapper">
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                id="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                placeholder="Create a password"
-                                required
-                                disabled={isLoading}
-                            />
+                            <div className="input-with-icon">
+                                <Lock size={18} className="input-icon" />
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    id="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="Create a password"
+                                    required
+                                    disabled={isLoading}
+                                />
+                            </div>
                             <button
                                 type="button"
                                 className="password-toggle"
                                 onClick={() => setShowPassword(!showPassword)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
@@ -157,16 +167,19 @@ const RegisterPage = () => {
 
                     <div className="form-group">
                         <label htmlFor="confirmPassword">Confirm Password</label>
-                        <input
-                            type={showPassword ? 'text' : 'password'}
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            placeholder="Confirm your password"
-                            required
-                            disabled={isLoading}
-                        />
+                        <div className="input-with-icon">
+                            <Lock size={18} className="input-icon" />
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                placeholder="Confirm your password"
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
                         {formData.confirmPassword && !passwordsMatch && (
                             <span className="field-error">Passwords do not match</span>
                         )}
