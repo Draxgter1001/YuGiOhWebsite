@@ -441,81 +441,258 @@ a {
   margin-top: 1rem;
 }
 
-/* ========================================
-   SEARCH BAR
-   ======================================== */
+/* ============================================
+   SEARCH BAR AUTOCOMPLETE STYLES
+   Add these styles to your global.css file
+   ============================================ */
 
+/* Search container - needs position relative for dropdown */
 .search-bar-container {
-  max-width: 640px;
+  position: relative;
+  width: 100%;
+  max-width: 600px;
   margin: 0 auto;
 }
 
+/* Search wrapper - contains input and buttons */
 .search-bar-wrapper {
-  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(30, 30, 40, 0.9);
+  border-radius: 12px;
+  padding: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: border-color 0.2s ease;
 }
 
+.search-bar-wrapper:focus-within {
+  border-color: #fbbf24;
+}
+
+/* Search input */
 .search-input {
-  width: 100%;
-  padding: 1rem 3.5rem 1rem 1.5rem;
-  background-color: #1f2937;
-  border: 2px solid #374151;
-  border-radius: 9999px;
-  color: #e5e7eb;
-  font-size: 1rem;
-  transition: border-color 0.3s ease;
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  font-size: 16px;
+  color: #fff;
+  outline: none;
 }
 
 .search-input::placeholder {
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: #facc15;
-}
-
-.search-button {
-  position: absolute;
-  top: 50%;
-  right: 0.5rem;
-  transform: translateY(-50%);
-  background-color: #facc15;
-  padding: 0.75rem;
-  border-radius: 9999px;
-  transition: background-color 0.3s ease;
-}
-
-.search-button:disabled {
-  background-color: #4b5563;
-  cursor: not-allowed;
-}
-
-.search-icon,
-.search-spinner {
-  width: 20px;
-  height: 20px;
-  color: #111827;
-}
-
-.search-disclaimer {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  text-align: center;
-  margin-top: 0.75rem;
-}
-
-.search-error-message {
+/* Clear button */
+.search-clear-btn {
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid #ef4444;
-  color: #f87171;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  margin-top: 1rem;
+  transition: color 0.2s ease;
+}
+
+.search-clear-btn:hover {
+  color: #fff;
+}
+
+/* Search button */
+.search-button {
+  background: #fbbf24;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.search-button:hover:not(:disabled) {
+  background: #f59e0b;
+  transform: scale(1.02);
+}
+
+.search-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.search-icon {
+  width: 20px;
+  height: 20px;
+  color: #1a1a2e;
+}
+
+.search-spinner {
+  width: 20px;
+  height: 20px;
+  color: #1a1a2e;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Search hint text */
+.search-hint {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ============================================
+   AUTOCOMPLETE DROPDOWN STYLES
+   ============================================ */
+
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: rgba(20, 20, 30, 0.98);
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+/* Custom scrollbar for dropdown */
+.search-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.search-dropdown::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.search-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.search-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Dropdown item */
+.search-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.search-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.search-dropdown-item:hover,
+.search-dropdown-item.selected {
+  background: rgba(251, 191, 36, 0.15);
+}
+
+.search-dropdown-item.selected {
+  background: rgba(251, 191, 36, 0.25);
+}
+
+/* Card thumbnail in dropdown */
+.dropdown-card-image {
+  width: 40px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Card info in dropdown */
+.dropdown-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dropdown-card-name {
+  color: #fff;
+  font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-card-type {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Loading state in dropdown */
+.search-dropdown-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ============================================
+   RESPONSIVE STYLES
+   ============================================ */
+
+@media (max-width: 640px) {
+  .search-bar-container {
+    max-width: 100%;
+    padding: 0 16px;
+  }
+
+  .search-input {
+    padding: 10px 12px;
+    font-size: 15px;
+  }
+
+  .search-button {
+    padding: 10px 14px;
+  }
+
+  .search-dropdown {
+    max-height: 300px;
+  }
+
+  .dropdown-card-image {
+    width: 35px;
+    height: 51px;
+  }
+
+  .dropdown-card-name {
+    font-size: 13px;
+  }
+
+  .dropdown-card-type {
+    font-size: 11px;
+  }
 }
 
 /* ========================================

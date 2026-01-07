@@ -15,17 +15,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/**
- * Service for fetching Yu-Gi-Oh card data.
- *
- * Uses YGOProDeck API v7: https://db.ygoprodeck.com/api/v7/cardinfo.php
- * API Docs: https://ygoprodeck.com/api-guide/
- *
- * Rate Limit: 20 requests/second (blocked 1 hour if exceeded)
- */
 @Service
 public class YugiohApiService {
 
@@ -42,8 +36,6 @@ public class YugiohApiService {
 
     private static final Logger logger = LoggerFactory.getLogger(YugiohApiService.class);
 
-
-    // Constructor injection (recommended over @Autowired field injection)
     public YugiohApiService(DatabaseImageService databaseImageService, CardRepository cardRepository) {
         this.databaseImageService = databaseImageService;
         this.cardRepository = cardRepository;
@@ -91,6 +83,61 @@ public class YugiohApiService {
 
         logger.info("✗ Not found: " + cleanName);
         return null;
+    }
+
+    /**
+     * Search for multiple cards by partial name - for autocomplete dropdown
+     * Uses YGOProDeck's fname (fuzzy name) parameter
+     */
+    public List<CardResponse> searchCardsByName(String query, int limit) {
+        List<CardResponse> results = new ArrayList<>();
+
+        if (query == null || query.trim().isEmpty()) {
+            return results;
+        }
+
+        String cleanQuery = query.trim();
+        logger.info("Autocomplete search for: " + cleanQuery);
+
+        try {
+            // Use fname (fuzzy name) to search for partial matches
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(apiBaseUrl)
+                    .queryParam("fname", cleanQuery)
+                    .queryParam("num", limit)
+                    .queryParam("offset", 0);
+
+            String response = restTemplate.getForObject(builder.build().toUriString(), String.class);
+            if (response == null) {
+                return results;
+            }
+
+            JsonNode data = objectMapper.readTree(response).get("data");
+            if (data == null || !data.isArray()) {
+                return results;
+            }
+
+            // Parse each card in the response
+            for (int i = 0; i < data.size() && i < limit; i++) {
+                try {
+                    CardResponse card = parseJson(data.get(i));
+                    results.add(card);
+
+                    // Save to database in background (don't block response)
+                    saveToDatabase(card);
+                } catch (Exception e) {
+                    logger.warn("Error parsing card: " + e.getMessage());
+                }
+            }
+
+            logger.info("✓ Autocomplete found " + results.size() + " cards for: " + cleanQuery);
+
+        } catch (Exception e) {
+            if (!e.getMessage().contains("404")) {
+                logger.error("Autocomplete API error: " + e.getMessage());
+            }
+        }
+
+        return results;
     }
 
     /**
@@ -157,22 +204,18 @@ public class YugiohApiService {
 
     private void saveToDatabase(CardResponse card) {
         // Run database saving and image downloading in a background thread
-        // so the user gets the API response immediately.
         java.util.concurrent.CompletableFuture.runAsync(() -> {
             try {
                 // 1. Save Card Data
                 databaseImageService.saveCardToDatabase(card);
 
                 // 2. Download Image (This is the slow part)
-                if (card.getImageUrl() != null) {
+                if (card.getImageUrl() != null && !databaseImageService.imageExists(card.getId())) {
                     databaseImageService.downloadAndStoreImage(
                             card.getImageUrl(),
                             card.getImageUrlSmall(),
                             card.getId()
                     );
-                    // Note: We don't need to update the 'card' object here
-                    // because the User has already received their response.
-                    // The NEXT user to query this card will get the local images.
                 }
             } catch (Exception e) {
                 logger.error("Background save error: " + e.getMessage());
@@ -205,7 +248,7 @@ public class YugiohApiService {
         card.setFrameType(node.get("frameType").asText());
         card.setDesc(node.get("desc").asText());
 
-        // Optional monster stats - using helper to avoid duplicate null checks
+        // Optional monster stats
         setIfPresent(node, "atk", val -> card.setAtk(val.asInt()));
         setIfPresent(node, "def", val -> card.setDef(val.asInt()));
         setIfPresent(node, "level", val -> card.setLevel(val.asInt()));
@@ -235,19 +278,12 @@ public class YugiohApiService {
         return card;
     }
 
-    /**
-     * Helper to reduce duplicate null-checking code for optional JSON fields
-     */
     private void setIfPresent(JsonNode node, String field, Consumer<JsonNode> setter) {
         if (node.has(field) && !node.get(field).isNull()) {
             setter.accept(node.get(field));
         }
     }
 
-    /**
-     * Build image URL using configurable backend URL
-     * Must match DatabaseImageController endpoints
-     */
     private String buildImageUrl(Long cardId, boolean small) {
         String endpoint = small ? "/small" : "/regular";
         return backendUrl + "/api/images/" + cardId + endpoint;
