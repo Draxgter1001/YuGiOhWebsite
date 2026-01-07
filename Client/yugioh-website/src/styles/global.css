@@ -863,19 +863,6 @@ img {
 /* ============================================
    ADD TO DECK BUTTON
    ============================================ */
-.add-to-deck-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  background: var(--color-gold);
-  color: var(--color-bg-dark);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition: all var(--transition-fast);
-}
-
 .add-to-deck-btn:hover {
   background: var(--color-gold-light);
 }
@@ -1497,19 +1484,6 @@ img {
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-lg);
-}
-
-.create-deck-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  background: var(--color-gold);
-  color: var(--color-bg-dark);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition: all var(--transition-fast);
 }
 
 .create-deck-btn:hover {
@@ -2469,4 +2443,135 @@ img {
 
 .auth-error div:last-child {
   margin-bottom: 0;
+}
+
+/* Field hint text */
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+}
+
+/* Input error state */
+.input-error {
+  border-color: var(--color-error) !important;
+}
+
+/* Auth error with multi-line support */
+.auth-error {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Modal Autocomplete Dropdown */
+.search-row-wrapper {
+  position: relative;
+  margin-bottom: var(--space-md);
+}
+
+.modal-autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.modal-autocomplete-dropdown .autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-autocomplete-dropdown .autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.modal-autocomplete-dropdown .autocomplete-item:hover,
+.modal-autocomplete-dropdown .autocomplete-item.selected {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.modal-autocomplete-dropdown .autocomplete-thumb {
+  width: 36px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+}
+
+.modal-autocomplete-dropdown .autocomplete-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-autocomplete-dropdown .autocomplete-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-autocomplete-dropdown .autocomplete-type {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.modal-autocomplete-dropdown .autocomplete-loading,
+.modal-autocomplete-dropdown .autocomplete-empty {
+  padding: var(--space-md);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.modal-autocomplete-dropdown .autocomplete-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+/* Search hint text */
+.search-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  margin-top: var(--space-xs);
+}
+
+/* Price tags in search result */
+.result-card-price {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.price-tag {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.price-tag.tcgplayer {
+  background: rgba(0, 128, 0, 0.2);
+  color: #4caf50;
+}
+
+.price-tag.cardmarket {
+  background: rgba(33, 150, 243, 0.2);
+  color: #2196f3;
 }
