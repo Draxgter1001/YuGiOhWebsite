@@ -160,24 +160,38 @@ export const apiService = {
       throw new Error('Search failed');
     }
 
-    return response.json();
+    const data = await response.json();
+    // FIX: Return just the card data, not the wrapper
+    return data.data;
   },
 
-  // NEW: Autocomplete search for dropdown suggestions
-  autocompleteCards: async (query, limit = 10) => {
+  // Autocomplete search for dropdown suggestions
+  autocompleteCard: async (query, limit = 10) => {
     if (!query || query.length < 2) {
-      return { success: true, data: [] };
+      return [];
     }
 
-    const response = await fetch(
-        `${API_BASE_URL}/cards/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`
-    );
+    try {
+      const response = await fetch(
+          `${API_BASE_URL}/cards/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`
+      );
 
-    if (!response.ok) {
-      throw new Error('Autocomplete search failed');
+      if (!response.ok) {
+        throw new Error('Autocomplete search failed');
+      }
+
+      const data = await response.json();
+      // FIX: Return just the array of cards, not the wrapper
+      return data.data || [];
+    } catch (err) {
+      console.error('Autocomplete error:', err);
+      return [];
     }
+  },
 
-    return response.json();
+  // Alias for backwards compatibility
+  autocompleteCards: async (query, limit = 10) => {
+    return apiService.autocompleteCard(query, limit);
   },
 
   // ============ DECKS ============
@@ -291,7 +305,7 @@ export const apiService = {
     return response.json();
   },
 
-// ============ USERNAME RECOVERY ============
+  // ============ USERNAME RECOVERY ============
   forgotUsername: async (email) => {
     const response = await fetch(`${API_BASE_URL}/auth/forgot-username`, {
       method: 'POST',
