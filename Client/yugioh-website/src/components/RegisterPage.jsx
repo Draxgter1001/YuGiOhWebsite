@@ -18,13 +18,13 @@ const RegisterPage = () => {
     const [fieldErrors, setFieldErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
 
-    // Password requirements
+    // Password requirements - expanded special character check
     const passwordChecks = {
         length: formData.password.length >= 8,
         uppercase: /[A-Z]/.test(formData.password),
         lowercase: /[a-z]/.test(formData.password),
         number: /[0-9]/.test(formData.password),
-        special: /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;'`~]/.test(formData.password),
+        special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(formData.password),
     };
 
     const isPasswordValid = Object.values(passwordChecks).every(Boolean);
@@ -33,7 +33,10 @@ const RegisterPage = () => {
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
         setError('');
-        setFieldErrors({});
+        // Clear specific field error when user starts typing
+        if (fieldErrors[e.target.name]) {
+            setFieldErrors({ ...fieldErrors, [e.target.name]: null });
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -66,11 +69,13 @@ const RegisterPage = () => {
                 // Check if there are field-specific validation errors
                 if (result.data && typeof result.data === 'object') {
                     setFieldErrors(result.data);
-                    // Create a user-friendly error message
+                    // Build a readable error message from field errors
                     const errorMessages = Object.entries(result.data)
                         .map(([field, msg]) => `${field}: ${msg}`)
                         .join('\n');
-                    setError(errorMessages || result.message || 'Registration failed');
+                    if (errorMessages) {
+                        setError(errorMessages);
+                    }
                 } else {
                     setError(result.message || 'Registration failed. Please try again.');
                 }
@@ -103,13 +108,7 @@ const RegisterPage = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="auth-form">
-                    {error && (
-                        <div className="auth-error">
-                            {error.split('\n').map((line, i) => (
-                                <div key={i}>{line}</div>
-                            ))}
-                        </div>
-                    )}
+                    {error && <div className="auth-error">{error}</div>}
 
                     <div className="form-group">
                         <label htmlFor="username">Username</label>
@@ -125,13 +124,14 @@ const RegisterPage = () => {
                                 required
                                 disabled={isLoading}
                                 minLength={3}
-                                maxLength={20}
+                                maxLength={50}
+                                className={fieldErrors.username ? 'input-error' : ''}
                             />
                         </div>
                         {fieldErrors.username && (
                             <span className="field-error">{fieldErrors.username}</span>
                         )}
-                        <span className="field-hint">Letters, numbers, and underscores only</span>
+                        <span className="field-hint">3-50 characters. Letters, numbers, and underscores only.</span>
                     </div>
 
                     <div className="form-group">
@@ -147,6 +147,7 @@ const RegisterPage = () => {
                                 placeholder="Enter your email"
                                 required
                                 disabled={isLoading}
+                                className={fieldErrors.email ? 'input-error' : ''}
                             />
                         </div>
                         {fieldErrors.email && (
@@ -168,6 +169,7 @@ const RegisterPage = () => {
                                     placeholder="Create a password"
                                     required
                                     disabled={isLoading}
+                                    className={fieldErrors.password ? 'input-error' : ''}
                                 />
                             </div>
                             <button
