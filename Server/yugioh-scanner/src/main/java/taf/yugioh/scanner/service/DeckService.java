@@ -33,8 +33,8 @@ public class DeckService {
             "fusion_pendulum"
     );
 
-    @Value("${server.port:8080}")
-    private String serverPort;
+    @Value("${app.backend.url:http://localhost:8080}")
+    private String backendUrl;
 
     @Autowired
     private UserDeckRepository userDeckRepository;
@@ -323,15 +323,14 @@ public class DeckService {
 
         // Include card details if requested
         if (includeCards) {
-            String baseUrl = "http://localhost:" + serverPort;
             response.setMainDeck(mainDeckCards.stream()
-                    .map(dc -> DeckCardDTO.fromEntity(dc, baseUrl))
+                    .map(dc -> DeckCardDTO.fromEntity(dc, backendUrl))
                     .collect(Collectors.toList()));
             response.setExtraDeck(extraDeckCards.stream()
-                    .map(dc -> DeckCardDTO.fromEntity(dc, baseUrl))
+                    .map(dc -> DeckCardDTO.fromEntity(dc, backendUrl))
                     .collect(Collectors.toList()));
             response.setSideDeck(sideDeckCards.stream()
-                    .map(dc -> DeckCardDTO.fromEntity(dc, baseUrl))
+                    .map(dc -> DeckCardDTO.fromEntity(dc, backendUrl))
                     .collect(Collectors.toList()));
         }
 
@@ -409,13 +408,11 @@ public class DeckService {
 
     /**
      * Get total copies of a card across all deck sections
+     * Uses optimized database query instead of loading all cards
      */
     private int getTotalCardCopies(Long deckId, Long cardId) {
-        List<DeckCard> cards = deckCardRepository.findByDeckId(deckId);
-        return cards.stream()
-                .filter(dc -> dc.getCardId().equals(cardId))
-                .mapToInt(DeckCard::getQuantity)
-                .sum();
+        Integer count = deckCardRepository.countTotalCardCopies(deckId, cardId);
+        return count != null ? count : 0;
     }
 
     /**

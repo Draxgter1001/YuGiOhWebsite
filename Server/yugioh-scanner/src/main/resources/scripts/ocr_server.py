@@ -1,126 +1,83 @@
 import os
+import sys
+import easyocr
 import logging
-import cv2
-import numpy as np
-import pytesseract
-from pytesseract import Output
 from flask import Flask, request, jsonify
-from waitress import serve
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging for production
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-def clean_name_for_api(text):
-    if not text: return None
-    import re
-    # Keep alphanumeric, spaces, hyphens, apostrophes
-    cleaned = re.sub(r'[^\w\s\-\']', '', text)
-    cleaned = ' '.join(cleaned.split())
-    if len(cleaned) < 3: return None
+# 1. Load the model ONCE when the server starts
+print("Loading OCR Model... this may take a moment.")
+reader = easyocr.Reader(['en'], gpu=False) # Set gpu=True if you have a GPU server
+print("OCR Model Loaded and Ready.")
 
-    # Title Case
+def clean_name_for_api(card_name):
+    """Same cleaning logic as your original script"""
+    if not card_name: return None
+    import re
+    cleaned = card_name.replace('|', 'I').replace('0', 'O')
+    cleaned = ' '.join(cleaned.split())
+    cleaned = cleaned.replace('"', '').replace("'", "")
+    cleaned = re.sub(r'[^\w\s\-\']', '', cleaned)
+
     words = cleaned.split()
     capitalized_words = []
     small_words = {'the', 'of', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'from', 'with', 'by'}
+
     for i, word in enumerate(words):
         word_lower = word.lower()
         if i == 0 or word_lower not in small_words:
             capitalized_words.append(word_lower.capitalize())
         else:
             capitalized_words.append(word_lower)
+
     return ' '.join(capitalized_words).strip()
-
-def process_super_res(image_path):
-    try:
-        img = cv2.imread(image_path)
-        if img is None: return []
-
-        height, width = img.shape[:2]
-
-        # 1. CROP: Top 15% (Name Box Only)
-        header = img[int(height*0.015):int(height*0.16), int(width*0.02):int(width*0.90)]
-
-        # 2. SUPER SCALE (5x) - Critical for Tesseract Accuracy
-        # Using INTER_CUBIC to smooth pixelation
-        scaled = cv2.resize(header, None, fx=5, fy=5, interpolation=cv2.INTER_CUBIC)
-
-        gray = cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
-
-        processed_images = []
-
-        # Strategy A: Standard Threshold (For common cards)
-        # 100-255 range catches dark text on light backgrounds
-        _, thresh_std = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
-        processed_images.append(thresh_std)
-
-        # Strategy B: DILATION (For Thin/Shiny Text)
-        # This "thickens" the letters so the foil reflection doesn't break them apart
-        kernel = np.ones((2,2), np.uint8)
-        dilated = cv2.erode(thresh_std, kernel, iterations=1) # Erode black text = thicken it
-        processed_images.append(dilated)
-
-        # Strategy C: INVERTED + GLARE REMOVAL (For "Rainbow" / Ghost Rares)
-        # 1. CLAHE to remove glare
-        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8,8))
-        no_glare = clahe.apply(gray)
-        # 2. Threshold
-        _, thresh_glare = cv2.threshold(no_glare, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        # 3. Invert (Make letters white, background black) -> Tesseract reads this well
-        inverted = cv2.bitwise_not(thresh_glare)
-        processed_images.append(inverted)
-
-        return processed_images
-    except Exception as e:
-        logger.error(f"Processing error: {e}")
-        return []
 
 @app.route('/extract', methods=['POST'])
 def extract():
+    file_path = None
     try:
+        # Get image path from request
         data = request.json
         file_path = data.get('image_path')
 
         if not file_path or not os.path.exists(file_path):
-            return jsonify({'error': 'File not found'}), 404
+            return jsonify({'error': 'File not found'}), 400
 
-        processed_variants = process_super_res(file_path)
+        # Perform OCR
+        result = reader.readtext(file_path)
 
-        candidates = []
-
-        for i, img in enumerate(processed_variants):
-            # PSM 7: Single Line Mode (Since we cropped perfectly)
-            # PSM 6: Block Mode (Backup if crop isn't perfect)
-            for psm in [7, 6]:
-                raw_text = pytesseract.image_to_string(img, config=f'--psm {psm}').strip()
-                cleaned = clean_name_for_api(raw_text)
-
-                if cleaned:
-                    logger.info(f"Strategy {i} (PSM {psm}) found: {cleaned}")
-                    candidates.append(cleaned)
-
-        if not candidates:
-            logger.warning("No text found in header.")
+        if not result:
             return jsonify({'card_name': None})
 
-        # Heuristic: Pick the longest valid name extracted
-        best_match = max(candidates, key=len)
+        # Filter results (Logic preserved from your original script)
+        valid_detections = []
+        for detection in result:
+            text = detection[1].strip()
+            confidence = detection[2]
+            if len(text) >= 3 and confidence > 0.5:
+                bbox = detection[0]
+                top_y = bbox[0][1]
+                valid_detections.append((top_y, text))
 
-        return jsonify({'card_name': best_match})
+        if not valid_detections:
+            return jsonify({'card_name': None})
+
+        # Sort by Y position to get the title
+        valid_detections.sort(key=lambda x: x[0])
+        raw_name = valid_detections[0][1]
+        cleaned_name = clean_name_for_api(raw_name)
+
+        return jsonify({'card_name': cleaned_name})
 
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return jsonify({'error': 'Processing Error'}), 500
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'up', 'engine': 'tesseract-super-res'}), 200
+        logger.error(f"Error processing image: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    port = 5000
-    serve(app, host='127.0.0.1', port=port, threads=4)
+    # Run on localhost port 5000
+    app.run(host='127.0.0.1', port=5000)

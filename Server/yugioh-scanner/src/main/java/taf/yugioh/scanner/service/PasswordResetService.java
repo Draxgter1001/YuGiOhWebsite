@@ -1,6 +1,9 @@
 package taf.yugioh.scanner.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +20,8 @@ import java.util.UUID;
 @Service
 @Transactional
 public class PasswordResetService {
+
+    private static final Logger logger = LoggerFactory.getLogger(PasswordResetService.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -41,6 +46,7 @@ public class PasswordResetService {
 
         // Always return success to prevent email enumeration attacks
         if (userOptional.isEmpty()) {
+            logger.debug("Password reset requested for non-existent email");
             return ApiResponse.success("If an account exists with this email, a reset link has been sent.", null);
         }
 
@@ -56,9 +62,9 @@ public class PasswordResetService {
         // Send reset email
         try {
             emailService.sendPasswordResetEmail(normalizedEmail, token);
+            logger.info("Password reset email sent to: {}", normalizedEmail);
         } catch (Exception e) {
-            // Log the error but don't expose it to user
-            System.err.println("Failed to send password reset email: " + e.getMessage());
+            logger.error("Failed to send password reset email: {}", e.getMessage());
             return ApiResponse.error("Failed to send reset email. Please try again later.");
         }
 
@@ -69,7 +75,11 @@ public class PasswordResetService {
      * Verify if a reset token is valid
      */
     public ApiResponse<Boolean> verifyResetToken(String token) {
-        Optional<PasswordResetToken> tokenOptional = tokenRepository.findValidToken(token, LocalDateTime.now());
+        if (token == null || token.trim().isEmpty()) {
+            return ApiResponse.error("Invalid reset token.");
+        }
+
+        Optional<PasswordResetToken> tokenOptional = tokenRepository.findValidToken(token.trim(), LocalDateTime.now());
 
         if (tokenOptional.isEmpty()) {
             return ApiResponse.error("Invalid or expired reset token.");
@@ -82,8 +92,12 @@ public class PasswordResetService {
      * Reset password using token
      */
     public ApiResponse<Void> resetPassword(String token, String newPassword) {
+        if (token == null || token.trim().isEmpty()) {
+            return ApiResponse.error("Invalid reset token.");
+        }
+
         // Find valid token
-        Optional<PasswordResetToken> tokenOptional = tokenRepository.findValidToken(token, LocalDateTime.now());
+        Optional<PasswordResetToken> tokenOptional = tokenRepository.findValidToken(token.trim(), LocalDateTime.now());
 
         if (tokenOptional.isEmpty()) {
             return ApiResponse.error("Invalid or expired reset token.");
@@ -95,7 +109,7 @@ public class PasswordResetService {
         Optional<User> userOptional = userRepository.findByEmail(resetToken.getEmail());
 
         if (userOptional.isEmpty()) {
-            return ApiResponse.error("User not found.");
+            return ApiResponse.error("Unable to reset password. Please try again.");
         }
 
         User user = userOptional.get();
@@ -108,12 +122,13 @@ public class PasswordResetService {
         resetToken.setUsed(true);
         tokenRepository.save(resetToken);
 
+        logger.info("Password reset successful for user: {}", user.getUsername());
+
         // Send confirmation email
         try {
             emailService.sendPasswordChangedEmail(user.getEmail(), user.getUsername());
         } catch (Exception e) {
-            // Log error but don't fail the password reset
-            System.err.println("Failed to send password changed confirmation: " + e.getMessage());
+            logger.error("Failed to send password changed confirmation: {}", e.getMessage());
         }
 
         return ApiResponse.success("Password has been reset successfully.", null);
@@ -130,6 +145,7 @@ public class PasswordResetService {
 
         // Always return success to prevent email enumeration
         if (userOptional.isEmpty()) {
+            logger.debug("Username reminder requested for non-existent email");
             return ApiResponse.success("If an account exists with this email, your username has been sent.", null);
         }
 
@@ -138,8 +154,9 @@ public class PasswordResetService {
         // Send username reminder email
         try {
             emailService.sendUsernameReminderEmail(normalizedEmail, user.getUsername());
+            logger.info("Username reminder sent to: {}", normalizedEmail);
         } catch (Exception e) {
-            System.err.println("Failed to send username reminder: " + e.getMessage());
+            logger.error("Failed to send username reminder: {}", e.getMessage());
             return ApiResponse.error("Failed to send email. Please try again later.");
         }
 
@@ -155,9 +172,16 @@ public class PasswordResetService {
     }
 
     /**
-     * Cleanup expired tokens (can be called by a scheduled task)
+     * Automated cleanup of expired tokens - runs every hour
      */
+    @Scheduled(fixedRate = 3600000) // 1 hour in milliseconds
+    @Transactional
     public void cleanupExpiredTokens() {
-        tokenRepository.deleteExpiredTokens(LocalDateTime.now());
+        try {
+            tokenRepository.deleteExpiredTokens(LocalDateTime.now());
+            logger.debug("Expired password reset tokens cleaned up");
+        } catch (Exception e) {
+            logger.error("Error cleaning up expired tokens: {}", e.getMessage());
+        }
     }
 }

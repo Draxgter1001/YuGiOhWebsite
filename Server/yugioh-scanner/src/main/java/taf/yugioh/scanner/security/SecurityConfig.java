@@ -27,6 +27,9 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @Autowired
+    private RateLimitFilter rateLimitFilter;
+
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
@@ -37,11 +40,18 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/cards/**", "/api/images/**").permitAll()
+                        // Public endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/cards/**").permitAll()
+                        .requestMatchers("/api/images/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/decks/public/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // All other requests require authentication
                         .anyRequest().authenticated()
                 )
+                // Add rate limit filter first
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                // Then JWT authentication filter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -49,6 +59,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+        // BCrypt with strength 12 - good balance of security and performance
         return new BCryptPasswordEncoder(12);
     }
 
@@ -56,21 +67,45 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Trim and split origins to handle potential spacing issues in Env Vars
+        // Parse allowed origins from environment variable
         if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
             String[] origins = allowedOrigins.split(",");
             for (String origin : origins) {
-                configuration.addAllowedOrigin(origin.trim());
+                String trimmed = origin.trim();
+                if (!trimmed.isEmpty()) {
+                    configuration.addAllowedOrigin(trimmed);
+                }
             }
         } else {
-            // Fallback or explicit denial if no origins set
+            // Fallback for local development only
             configuration.setAllowedOrigins(List.of("http://localhost:3000"));
         }
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        // Allowed HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
+        ));
+
+        // Allowed headers
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
+                "Origin"
+        ));
+
+        // Headers exposed to the client
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "X-RateLimit-Limit",
+                "X-RateLimit-Remaining"
+        ));
+
+        // Allow credentials (cookies, authorization headers)
         configuration.setAllowCredentials(true);
+
+        // Cache preflight response for 1 hour
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

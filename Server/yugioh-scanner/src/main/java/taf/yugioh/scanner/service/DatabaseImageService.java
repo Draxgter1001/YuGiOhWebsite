@@ -20,8 +20,8 @@ import java.util.concurrent.CompletableFuture;
 @Transactional
 public class DatabaseImageService {
 
-    @Value("${server.port:8080}")
-    private String serverPort;
+    @Value("${app.backend.url:http://localhost:8080}")
+    private String backendUrl;
 
     @Autowired
     private CardImageRepository cardImageRepository;
@@ -46,7 +46,7 @@ public class DatabaseImageService {
         try {
             // Check if image already exists
             if (cardImageRepository.existsByCardId(cardId)) {
-                return buildLocalImageUrl(cardId, false);
+                return buildImageUrl(cardId, false);
             }
 
             // Download both images
@@ -83,10 +83,10 @@ public class DatabaseImageService {
                 CardImage savedImage = cardImageRepository.save(cardImage);
 
                 logger.info("Downloaded and stored image for card " + cardId +
-                    " (Size: " + imageData.length + " bytes" +
-                    (smallImageData != null ? ", Small: " + smallImageData.length + " bytes" : "") + ")");
+                        " (Size: " + imageData.length + " bytes" +
+                        (smallImageData != null ? ", Small: " + smallImageData.length + " bytes" : "") + ")");
 
-                return buildLocalImageUrl(cardId, false);
+                return buildImageUrl(cardId, false);
             } else {
                 logger.error("Failed to download image: " + externalImageUrl);
                 return null;
@@ -103,8 +103,8 @@ public class DatabaseImageService {
      * Downloads images asynchronously to avoid blocking the main response
      */
     public CompletableFuture<String> downloadImageAsync(String externalImageUrl, String externalSmallImageUrl, Long cardId) {
-        return CompletableFuture.supplyAsync(() -> 
-            downloadAndStoreImage(externalImageUrl, externalSmallImageUrl, cardId)
+        return CompletableFuture.supplyAsync(() ->
+                downloadAndStoreImage(externalImageUrl, externalSmallImageUrl, cardId)
         );
     }
 
@@ -128,11 +128,12 @@ public class DatabaseImageService {
     }
 
     /**
-     * Builds the local URL that the frontend will use to access the image
+     * Builds the URL that the frontend will use to access the image
+     * Uses configurable backend URL for production deployment
      */
-    public String buildLocalImageUrl(Long cardId, boolean isSmall) {
+    public String buildImageUrl(Long cardId, boolean isSmall) {
         String endpoint = isSmall ? "small" : "regular";
-        return "http://localhost:" + serverPort + "/api/images/" + cardId + "/" + endpoint;
+        return backendUrl + "/api/images/" + cardId + "/" + endpoint;
     }
 
     /**
@@ -150,7 +151,7 @@ public class DatabaseImageService {
         try {
             // Check if card already exists
             Optional<Card> existingCard = cardRepository.findByCardId(cardResponse.getId());
-            
+
             Card card;
             if (existingCard.isPresent()) {
                 card = existingCard.get();
@@ -198,11 +199,11 @@ public class DatabaseImageService {
      */
     public Optional<taf.yugioh.scanner.model.CardResponse> getCardFromDatabase(Long cardId) {
         Optional<Card> cardOpt = cardRepository.findByCardId(cardId);
-        
+
         if (cardOpt.isPresent()) {
             Card card = cardOpt.get();
             taf.yugioh.scanner.model.CardResponse response = new taf.yugioh.scanner.model.CardResponse();
-            
+
             // Map card data
             response.setId(card.getCardId());
             response.setName(card.getName());
@@ -217,13 +218,13 @@ public class DatabaseImageService {
 
             // Set image URLs if they exist (query separately)
             if (imageExists(cardId)) {
-                response.setImageUrl(buildLocalImageUrl(cardId, false));
-                response.setImageUrlSmall(buildLocalImageUrl(cardId, true));
+                response.setImageUrl(buildImageUrl(cardId, false));
+                response.setImageUrlSmall(buildImageUrl(cardId, true));
             }
 
             return Optional.of(response);
         }
-        
+
         return Optional.empty();
     }
 
@@ -235,12 +236,12 @@ public class DatabaseImageService {
             if (obj == null) {
                 return null;
             }
-            
+
             // If it's already a string, return as-is
             if (obj instanceof String) {
                 return (String) obj;
             }
-            
+
             // Convert object to JSON string
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
@@ -277,5 +278,5 @@ public class DatabaseImageService {
             return totalImages;
         }
     }
-    
+
 }

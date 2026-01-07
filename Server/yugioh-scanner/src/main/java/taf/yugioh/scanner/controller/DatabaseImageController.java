@@ -1,6 +1,9 @@
 package taf.yugioh.scanner.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -9,11 +12,17 @@ import org.springframework.web.bind.annotation.*;
 import taf.yugioh.scanner.service.DatabaseImageService;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * Controller for serving card images from database.
+ * CORS is handled by global SecurityConfig - DO NOT add @CrossOrigin here.
+ */
 @RestController
 @RequestMapping("/api/images")
-@CrossOrigin(origins = "*")
 public class DatabaseImageController {
+
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseImageController.class);
 
     @Autowired
     private DatabaseImageService databaseImageService;
@@ -25,23 +34,20 @@ public class DatabaseImageController {
     public ResponseEntity<byte[]> getRegularImage(@PathVariable Long cardId) {
         try {
             Optional<byte[]> imageData = databaseImageService.getImageData(cardId, false);
-            
+
             if (imageData.isPresent() && imageData.get().length > 0) {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.IMAGE_JPEG);
-                headers.setContentLength(imageData.get().length);
-                headers.setCacheControl("max-age=3600"); // Cache for 1 hour
-                
                 return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(imageData.get());
+                        .contentType(MediaType.IMAGE_JPEG)
+                        .contentLength(imageData.get().length)
+                        .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                        .header(HttpHeaders.ETAG, "\"" + cardId + "-regular\"")
+                        .body(imageData.get());
             } else {
                 return ResponseEntity.notFound().build();
             }
-            
+
         } catch (Exception e) {
-            System.err.println("Error retrieving regular image for card " + cardId + ": " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error retrieving regular image for card {}: {}", cardId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -53,23 +59,20 @@ public class DatabaseImageController {
     public ResponseEntity<byte[]> getSmallImage(@PathVariable Long cardId) {
         try {
             Optional<byte[]> imageData = databaseImageService.getImageData(cardId, true);
-            
+
             if (imageData.isPresent() && imageData.get().length > 0) {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.IMAGE_JPEG);
-                headers.setContentLength(imageData.get().length);
-                headers.setCacheControl("max-age=3600"); // Cache for 1 hour
-                
                 return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(imageData.get());
+                        .contentType(MediaType.IMAGE_JPEG)
+                        .contentLength(imageData.get().length)
+                        .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                        .header(HttpHeaders.ETAG, "\"" + cardId + "-small\"")
+                        .body(imageData.get());
             } else {
                 return ResponseEntity.notFound().build();
             }
-            
+
         } catch (Exception e) {
-            System.err.println("Error retrieving small image for card " + cardId + ": " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error retrieving small image for card {}: {}", cardId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -81,9 +84,11 @@ public class DatabaseImageController {
     public ResponseEntity<Boolean> imageExists(@PathVariable Long cardId) {
         try {
             boolean exists = databaseImageService.imageExists(cardId);
-            return ResponseEntity.ok(exists);
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES))
+                    .body(exists);
         } catch (Exception e) {
-            System.err.println("Error checking if image exists for card " + cardId + ": " + e.getMessage());
+            logger.error("Error checking image existence for card {}: {}", cardId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(false);
         }
     }
@@ -95,31 +100,32 @@ public class DatabaseImageController {
     public ResponseEntity<DatabaseImageService.ImageStats> getImageStats() {
         try {
             DatabaseImageService.ImageStats stats = databaseImageService.getImageStats();
-            return ResponseEntity.ok(stats);
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.maxAge(1, TimeUnit.MINUTES))
+                    .body(stats);
         } catch (Exception e) {
-            System.err.println("Error retrieving image statistics: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error retrieving image statistics: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
-     * Delete image for a specific card
+     * Delete image for a specific card (requires authentication via SecurityConfig)
      */
     @DeleteMapping("/{cardId}")
     public ResponseEntity<String> deleteImage(@PathVariable Long cardId) {
         try {
             if (databaseImageService.imageExists(cardId)) {
                 databaseImageService.deleteCardImage(cardId);
+                logger.info("Deleted image for card {}", cardId);
                 return ResponseEntity.ok("Image deleted successfully for card " + cardId);
             } else {
                 return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
-            System.err.println("Error deleting image for card " + cardId + ": " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error deleting image for card {}: {}", cardId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error deleting image: " + e.getMessage());
+                    .body("Error deleting image");
         }
     }
 }
