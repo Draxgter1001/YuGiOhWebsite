@@ -49,7 +49,12 @@ export const AuthProvider = ({ children }) => {
             return { success: true };
         }
 
-        return { success: false, message: response.message };
+        // FIX: Pass the data field which contains field-specific validation errors
+        return {
+            success: false,
+            message: response.message,
+            data: response.data  // This contains { username: "error", password: "error" }
+        };
     };
 
     const logout = () => {
