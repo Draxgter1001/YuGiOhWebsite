@@ -163,6 +163,23 @@ export const apiService = {
     return response.json();
   },
 
+  // NEW: Autocomplete search for dropdown suggestions
+  autocompleteCards: async (query, limit = 10) => {
+    if (!query || query.length < 2) {
+      return { success: true, data: [] };
+    }
+
+    const response = await fetch(
+        `${API_BASE_URL}/cards/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+
+    if (!response.ok) {
+      throw new Error('Autocomplete search failed');
+    }
+
+    return response.json();
+  },
+
   // ============ DECKS ============
   getMyDecks: async () => {
     const response = await authFetch(`${API_BASE_URL}/decks`);
