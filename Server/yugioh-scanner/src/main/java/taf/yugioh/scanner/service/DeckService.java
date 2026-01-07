@@ -1,5 +1,7 @@
 package taf.yugioh.scanner.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,8 @@ public class DeckService {
             "xyz_pendulum",
             "fusion_pendulum"
     );
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.backend.url:http://localhost:8080}")
     private String backendUrl;
@@ -277,7 +281,7 @@ public class DeckService {
     // ==================== Helper Methods ====================
 
     /**
-     * Build complete deck response with validation
+     * Build complete deck response with validation and prices
      */
     private DeckResponse buildDeckResponse(UserDeck deck, boolean includeCards) {
         DeckResponse response = DeckResponse.fromEntity(deck);
@@ -294,6 +298,11 @@ public class DeckService {
         int extraCount = 0;
         int sideCount = 0;
 
+        // Price totals
+        double cardmarketTotal = 0.0;
+        double tcgplayerTotal = 0.0;
+        double coolstuffincTotal = 0.0;
+
         for (DeckCard dc : deckCards) {
             switch (dc.getDeckType()) {
                 case MAIN:
@@ -309,12 +318,32 @@ public class DeckService {
                     sideCount += dc.getQuantity();
                     break;
             }
+
+            // Calculate prices
+            Card card = dc.getCard();
+            if (card != null && card.getCardPrices() != null) {
+                CardPrices prices = parsePricesFromJson(card.getCardPrices());
+                if (prices != null) {
+                    int qty = dc.getQuantity();
+                    cardmarketTotal += prices.getCardmarketPriceValue() * qty;
+                    tcgplayerTotal += prices.getTcgplayerPriceValue() * qty;
+                    coolstuffincTotal += prices.getCoolstuffincPriceValue() * qty;
+                }
+            }
         }
 
         response.setMainDeckCount(mainCount);
         response.setExtraDeckCount(extraCount);
         response.setSideDeckCount(sideCount);
         response.setTotalCards(mainCount + extraCount + sideCount);
+
+        // Set total prices
+        DeckResponse.DeckPrices totalPrices = new DeckResponse.DeckPrices(
+                Math.round(cardmarketTotal * 100.0) / 100.0,
+                Math.round(tcgplayerTotal * 100.0) / 100.0,
+                Math.round(coolstuffincTotal * 100.0) / 100.0
+        );
+        response.setTotalPrices(totalPrices);
 
         // Validate deck
         List<String> errors = validateDeckRules(mainCount, extraCount, sideCount, deckCards);
@@ -335,6 +364,36 @@ public class DeckService {
         }
 
         return response;
+    }
+
+    /**
+     * Parse CardPrices from stored JSON string
+     */
+    private CardPrices parsePricesFromJson(String jsonString) {
+        try {
+            JsonNode priceNode = objectMapper.readTree(jsonString);
+            CardPrices prices = new CardPrices();
+
+            if (priceNode.has("cardmarket_price") && !priceNode.get("cardmarket_price").isNull()) {
+                prices.setCardmarketPrice(priceNode.get("cardmarket_price").asText());
+            }
+            if (priceNode.has("tcgplayer_price") && !priceNode.get("tcgplayer_price").isNull()) {
+                prices.setTcgplayerPrice(priceNode.get("tcgplayer_price").asText());
+            }
+            if (priceNode.has("ebay_price") && !priceNode.get("ebay_price").isNull()) {
+                prices.setEbayPrice(priceNode.get("ebay_price").asText());
+            }
+            if (priceNode.has("amazon_price") && !priceNode.get("amazon_price").isNull()) {
+                prices.setAmazonPrice(priceNode.get("amazon_price").asText());
+            }
+            if (priceNode.has("coolstuffinc_price") && !priceNode.get("coolstuffinc_price").isNull()) {
+                prices.setCoolstuffincPrice(priceNode.get("coolstuffinc_price").asText());
+            }
+
+            return prices;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

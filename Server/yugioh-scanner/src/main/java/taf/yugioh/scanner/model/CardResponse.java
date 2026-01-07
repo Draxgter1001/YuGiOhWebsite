@@ -1,5 +1,7 @@
 package taf.yugioh.scanner.model;
 
+import taf.yugioh.scanner.dto.CardPrices;
+
 public class CardResponse {
     private Long id;
     private String name;
@@ -14,7 +16,10 @@ public class CardResponse {
     private String imageUrl;
     private String imageUrlSmall;
     private Object[] cardSets;
-    private Object cardPrices;
+    private Object cardPrices;  // Keep for backward compatibility with API response
+
+    // Structured price fields for frontend
+    private CardPrices prices;
 
     // Constructors
     public CardResponse() {}
@@ -61,4 +66,7 @@ public class CardResponse {
 
     public Object getCardPrices() { return cardPrices; }
     public void setCardPrices(Object cardPrices) { this.cardPrices = cardPrices; }
+
+    public CardPrices getPrices() { return prices; }
+    public void setPrices(CardPrices prices) { this.prices = prices; }
 }

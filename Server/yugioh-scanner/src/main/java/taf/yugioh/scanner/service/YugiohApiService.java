@@ -2,6 +2,7 @@ package taf.yugioh.scanner.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import taf.yugioh.scanner.dto.CardPrices;
 import taf.yugioh.scanner.entity.Card;
 import taf.yugioh.scanner.model.CardResponse;
 import taf.yugioh.scanner.repository.CardRepository;
@@ -237,6 +238,17 @@ public class YugiohApiService {
         r.setAttribute(card.getAttribute());
         r.setImageUrl(buildImageUrl(card.getCardId(), false));
         r.setImageUrlSmall(buildImageUrl(card.getCardId(), true));
+
+        // Parse prices from stored JSON
+        if (card.getCardPrices() != null && !card.getCardPrices().isEmpty()) {
+            try {
+                CardPrices prices = parsePricesFromJson(card.getCardPrices());
+                r.setPrices(prices);
+            } catch (Exception e) {
+                logger.warn("Error parsing stored prices: " + e.getMessage());
+            }
+        }
+
         return r;
     }
 
@@ -269,13 +281,44 @@ public class YugiohApiService {
             card.setCardSets(objectMapper.convertValue(sets, Object[].class));
         }
 
-        // Card prices (optional)
+        // Card prices - parse into structured format
         JsonNode prices = node.get("card_prices");
         if (prices != null && prices.isArray() && !prices.isEmpty()) {
-            card.setCardPrices(objectMapper.convertValue(prices.get(0), Object.class));
+            JsonNode priceNode = prices.get(0);
+            card.setCardPrices(objectMapper.convertValue(priceNode, Object.class));
+
+            // Parse into structured CardPrices object
+            CardPrices cardPrices = new CardPrices();
+            setIfPresent(priceNode, "cardmarket_price", val -> cardPrices.setCardmarketPrice(val.asText()));
+            setIfPresent(priceNode, "tcgplayer_price", val -> cardPrices.setTcgplayerPrice(val.asText()));
+            setIfPresent(priceNode, "ebay_price", val -> cardPrices.setEbayPrice(val.asText()));
+            setIfPresent(priceNode, "amazon_price", val -> cardPrices.setAmazonPrice(val.asText()));
+            setIfPresent(priceNode, "coolstuffinc_price", val -> cardPrices.setCoolstuffincPrice(val.asText()));
+            card.setPrices(cardPrices);
         }
 
         return card;
+    }
+
+    /**
+     * Parse CardPrices from stored JSON string
+     */
+    private CardPrices parsePricesFromJson(String jsonString) {
+        try {
+            JsonNode priceNode = objectMapper.readTree(jsonString);
+            CardPrices prices = new CardPrices();
+
+            setIfPresent(priceNode, "cardmarket_price", val -> prices.setCardmarketPrice(val.asText()));
+            setIfPresent(priceNode, "tcgplayer_price", val -> prices.setTcgplayerPrice(val.asText()));
+            setIfPresent(priceNode, "ebay_price", val -> prices.setEbayPrice(val.asText()));
+            setIfPresent(priceNode, "amazon_price", val -> prices.setAmazonPrice(val.asText()));
+            setIfPresent(priceNode, "coolstuffinc_price", val -> prices.setCoolstuffincPrice(val.asText()));
+
+            return prices;
+        } catch (Exception e) {
+            logger.error("Error parsing prices JSON: " + e.getMessage());
+            return null;
+        }
     }
 
     private void setIfPresent(JsonNode node, String field, Consumer<JsonNode> setter) {

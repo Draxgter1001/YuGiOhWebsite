@@ -29,6 +29,9 @@ public class DeckResponse {
     private List<DeckCardDTO> extraDeck;
     private List<DeckCardDTO> sideDeck;
 
+    // Total deck prices
+    private DeckPrices totalPrices;
+
     // Constructors
     public DeckResponse() {}
 
@@ -93,4 +96,33 @@ public class DeckResponse {
 
     public List<DeckCardDTO> getSideDeck() { return sideDeck; }
     public void setSideDeck(List<DeckCardDTO> sideDeck) { this.sideDeck = sideDeck; }
+
+    public DeckPrices getTotalPrices() { return totalPrices; }
+    public void setTotalPrices(DeckPrices totalPrices) { this.totalPrices = totalPrices; }
+
+    /**
+     * Inner class for deck total prices
+     */
+    public static class DeckPrices {
+        private double cardmarketTotal;
+        private double tcgplayerTotal;
+        private double coolstuffincTotal;
+
+        public DeckPrices() {}
+
+        public DeckPrices(double cardmarket, double tcgplayer, double coolstuffinc) {
+            this.cardmarketTotal = cardmarket;
+            this.tcgplayerTotal = tcgplayer;
+            this.coolstuffincTotal = coolstuffinc;
+        }
+
+        public double getCardmarketTotal() { return cardmarketTotal; }
+        public void setCardmarketTotal(double cardmarketTotal) { this.cardmarketTotal = cardmarketTotal; }
+
+        public double getTcgplayerTotal() { return tcgplayerTotal; }
+        public void setTcgplayerTotal(double tcgplayerTotal) { this.tcgplayerTotal = tcgplayerTotal; }
+
+        public double getCoolstuffincTotal() { return coolstuffincTotal; }
+        public void setCoolstuffincTotal(double coolstuffincTotal) { this.coolstuffincTotal = coolstuffincTotal; }
+    }
 }

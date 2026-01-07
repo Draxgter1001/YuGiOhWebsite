@@ -2390,3 +2390,298 @@ a {
 .auth-logo-link:hover .auth-logo {
   box-shadow: 0 4px 15px rgba(250, 204, 21, 0.4);
 }
+
+/* ============================================
+   PRICE DISPLAY STYLES
+   ============================================ */
+
+/* ============================================
+   CARD PRICE BADGES (Individual card prices)
+   ============================================ */
+
+.card-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.price-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.price-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.price-badge .price-label {
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.price-badge .price-value {
+  font-weight: 700;
+}
+
+.price-badge .price-link-icon {
+  opacity: 0.7;
+}
+
+/* Cardmarket - Blue theme */
+.price-badge.cardmarket {
+  background: linear-gradient(135deg, #1a5fb4, #3584e4);
+  color: white;
+}
+
+/* TCGPlayer - Teal/Blue theme */
+.price-badge.tcgplayer {
+  background: linear-gradient(135deg, #0d6d8a, #1a9cb0);
+  color: white;
+}
+
+/* CoolStuffInc - Dark blue theme */
+.price-badge.coolstuffinc {
+  background: linear-gradient(135deg, #1a1a4e, #2d2d7a);
+  color: white;
+}
+
+/* ============================================
+   DECK PRICE DISPLAY (Total deck value)
+   ============================================ */
+
+.deck-prices {
+  margin-top: 16px;
+}
+
+.deck-prices-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 10px;
+}
+
+.deck-price-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.deck-price-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: 10px;
+  min-width: 120px;
+}
+
+.deck-price-badge .price-label {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.deck-price-badge .price-value {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.deck-price-badge.cardmarket {
+  background: linear-gradient(135deg, #1a5fb4, #3584e4);
+  color: white;
+}
+
+.deck-price-badge.tcgplayer {
+  background: linear-gradient(135deg, #0d6d8a, #1a9cb0);
+  color: white;
+}
+
+.deck-price-badge.coolstuffinc {
+  background: linear-gradient(135deg, #1a1a4e, #2d2d7a);
+  color: white;
+}
+
+/* ============================================
+   DECK PRICES SECTION IN DECK BUILDER
+   ============================================ */
+
+.deck-prices-section {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.deck-prices-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.deck-prices-header svg {
+  color: #fbbf24;
+}
+
+.toggle-prices-btn {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toggle-prices-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   COMPACT PRICE (For card lists in deck view)
+   ============================================ */
+
+.compact-price {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #4ade80;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  z-index: 5;
+  transition: background 0.15s ease;
+}
+
+.compact-price:hover {
+  background: rgba(0, 0, 0, 0.95);
+  color: #86efac;
+}
+
+/* Make deck-card-item position relative for compact price */
+.deck-card-item {
+  position: relative;
+}
+
+/* ============================================
+   CARD DETAIL MODAL PRICE SECTION
+   ============================================ */
+
+.info-price-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.price-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 12px;
+}
+
+/* ============================================
+   SEARCH RESULT CARD PRICE
+   ============================================ */
+
+.result-card-price {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.price-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.price-tag.tcgplayer {
+  background: rgba(13, 109, 138, 0.3);
+  color: #5fd4f4;
+}
+
+.price-tag.cardmarket {
+  background: rgba(26, 95, 180, 0.3);
+  color: #7cb4f4;
+}
+
+/* ============================================
+   MY DECKS PAGE - DECK CARD PRICES
+   ============================================ */
+
+.deck-card .deck-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.deck-card .deck-value-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.deck-card .deck-value-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+/* ============================================
+   RESPONSIVE STYLES
+   ============================================ */
+
+@media (max-width: 640px) {
+  .card-prices {
+    flex-direction: column;
+  }
+
+  .price-badge {
+    justify-content: space-between;
+  }
+
+  .deck-price-badges {
+    flex-direction: column;
+  }
+
+  .deck-price-badge {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 10px 16px;
+    min-width: auto;
+  }
+
+  .deck-price-badge .price-value {
+    font-size: 16px;
+    margin-top: 0;
+  }
+
+  .compact-price {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+}
