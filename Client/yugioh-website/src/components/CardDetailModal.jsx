@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { CardPriceDisplay } from './PriceDisplay';
 
 // Helper component to render level stars
 const LevelStars = ({ level }) => {
@@ -69,6 +70,14 @@ const CardDetailModal = ({ card, onClose }) => {
               <h3 className="desc-title">Effect</h3>
               <p className="desc-text">{card.desc}</p>
             </div>
+
+            {/* Price Display */}
+            {card.prices && (
+                <div className="info-price-section">
+                  <h3 className="price-section-title">Market Prices</h3>
+                  <CardPriceDisplay prices={card.prices} cardName={card.name} />
+                </div>
+            )}
           </div>
         </div>
       </div>
