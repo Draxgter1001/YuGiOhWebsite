@@ -13,6 +13,7 @@ import ForgotUsernamePage from './components/ForgotUsernamePage';
 import MyDecksPage from './components/MyDecksPage';
 import DeckBuilderPage from './components/DeckBuilderPage';
 
+// Styles - Import global.css for DuelDiskScan theme
 import './styles/global.css';
 
 function App() {

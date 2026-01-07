@@ -10,6 +10,7 @@ import {
     Lock,
     Globe,
     AlertCircle,
+    X,
 } from 'lucide-react';
 import Header from '../components/Header';
 
@@ -79,14 +80,21 @@ const MyDecksPage = () => {
         }
     };
 
+    const closeCreateModal = () => {
+        setShowCreateModal(false);
+        setNewDeckName('');
+        setNewDeckDescription('');
+    };
+
     return (
-        <div className="scanner-background">
-            <div className="scanner-pattern" />
+        <div className="page-background">
             <Header />
 
             <main className="main-container">
                 <div className="decks-header">
-                    <h2 className="section-title">My Decks</h2>
+                    <h1 className="section-title" style={{ fontSize: '1.5rem', color: '#d4af37' }}>
+                        My Decks
+                    </h1>
                     <button className="create-deck-btn" onClick={() => setShowCreateModal(true)}>
                         <Plus size={20} />
                         <span>New Deck</span>
@@ -94,9 +102,10 @@ const MyDecksPage = () => {
                 </div>
 
                 {error && (
-                    <div className="error-message">
+                    <div className="error-message" onClick={() => setError('')}>
                         <AlertCircle size={20} />
                         <span>{error}</span>
+                        <X size={16} className="close-icon" />
                     </div>
                 )}
 
@@ -108,6 +117,9 @@ const MyDecksPage = () => {
                 ) : decks.length === 0 ? (
                     <div className="empty-decks">
                         <p>You don't have any decks yet.</p>
+                        <p style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+                            Create a deck to start building your collection!
+                        </p>
                         <button className="create-deck-btn" onClick={() => setShowCreateModal(true)}>
                             <Plus size={20} />
                             <span>Create Your First Deck</span>
@@ -162,55 +174,78 @@ const MyDecksPage = () => {
                         ))}
                     </div>
                 )}
+
+                {/* Footer */}
+                <footer className="footer" style={{ marginTop: '3rem' }}>
+                    <p>
+                        DuelDiskScan.gg - Build and manage your Yu-Gi-Oh! decks
+                    </p>
+                </footer>
             </main>
 
             {/* Create Deck Modal */}
             {showCreateModal && (
-                <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+                <div className="modal-overlay" onClick={closeCreateModal}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <h3>Create New Deck</h3>
+                        <button className="modal-close-btn" onClick={closeCreateModal}>
+                            <X size={20} />
+                        </button>
+
+                        <div className="modal-header">
+                            <h3 className="modal-title">Create New Deck</h3>
+                        </div>
+
                         <form onSubmit={handleCreateDeck}>
-                            <div className="form-group">
-                                <label htmlFor="deckName">Deck Name</label>
-                                <input
-                                    type="text"
-                                    id="deckName"
-                                    value={newDeckName}
-                                    onChange={(e) => setNewDeckName(e.target.value)}
-                                    placeholder="Enter deck name"
-                                    required
-                                    maxLength={50}
-                                    disabled={isCreating}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="deckDescription">Description (optional)</label>
-                                <textarea
-                                    id="deckDescription"
-                                    value={newDeckDescription}
-                                    onChange={(e) => setNewDeckDescription(e.target.value)}
-                                    placeholder="Describe your deck strategy..."
-                                    rows={3}
-                                    maxLength={200}
-                                    disabled={isCreating}
-                                />
-                            </div>
-                            <div className="modal-actions">
-                                <button
-                                    type="button"
-                                    className="modal-btn cancel"
-                                    onClick={() => setShowCreateModal(false)}
-                                    disabled={isCreating}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="modal-btn confirm"
-                                    disabled={isCreating || !newDeckName.trim()}
-                                >
-                                    {isCreating ? <Loader2 className="spin" size={16} /> : 'Create'}
-                                </button>
+                            <div className="modal-body">
+                                <div className="form-group">
+                                    <label htmlFor="deckName">Deck Name</label>
+                                    <input
+                                        type="text"
+                                        id="deckName"
+                                        value={newDeckName}
+                                        onChange={(e) => setNewDeckName(e.target.value)}
+                                        placeholder="Enter deck name"
+                                        required
+                                        maxLength={50}
+                                        disabled={isCreating}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="deckDescription">Description (optional)</label>
+                                    <textarea
+                                        id="deckDescription"
+                                        value={newDeckDescription}
+                                        onChange={(e) => setNewDeckDescription(e.target.value)}
+                                        placeholder="Describe your deck strategy..."
+                                        rows={3}
+                                        maxLength={200}
+                                        disabled={isCreating}
+                                    />
+                                </div>
+                                <div className="modal-actions">
+                                    <button
+                                        type="button"
+                                        className="modal-btn cancel"
+                                        onClick={closeCreateModal}
+                                        disabled={isCreating}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="modal-btn confirm"
+                                        disabled={isCreating || !newDeckName.trim()}
+                                    >
+                                        {isCreating ? (
+                                            <>
+                                                <Loader2 className="spin" size={16} />
+                                                Creating...
+                                            </>
+                                        ) : (
+                                            'Create Deck'
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -221,24 +256,35 @@ const MyDecksPage = () => {
             {deckToDelete && (
                 <div className="modal-overlay" onClick={() => setDeckToDelete(null)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <h3>Delete Deck</h3>
-                        <p>Are you sure you want to delete "{deckToDelete.name}"?</p>
-                        <p className="warning-text">This action cannot be undone.</p>
-                        <div className="modal-actions">
-                            <button
-                                className="modal-btn cancel"
-                                onClick={() => setDeckToDelete(null)}
-                                disabled={isDeleting}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="modal-btn delete"
-                                onClick={handleDeleteDeck}
-                                disabled={isDeleting}
-                            >
-                                {isDeleting ? <Loader2 className="spin" size={16} /> : 'Delete'}
-                            </button>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Delete Deck</h3>
+                        </div>
+                        <div className="modal-body">
+                            <p>Are you sure you want to delete "{deckToDelete.name}"?</p>
+                            <p className="warning-text">This action cannot be undone.</p>
+                            <div className="modal-actions">
+                                <button
+                                    className="modal-btn cancel"
+                                    onClick={() => setDeckToDelete(null)}
+                                    disabled={isDeleting}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="modal-btn delete"
+                                    onClick={handleDeleteDeck}
+                                    disabled={isDeleting}
+                                >
+                                    {isDeleting ? (
+                                        <>
+                                            <Loader2 className="spin" size={16} />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        'Delete'
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

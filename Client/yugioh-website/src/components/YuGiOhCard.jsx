@@ -2,38 +2,48 @@ import React, { useState } from 'react';
 import CardDetailModal from './CardDetailModal';
 
 const YuGiOhCard = ({ card, zoomable = false }) => {
-  const [isZoomed, setIsZoomed] = useState(false);
+    const [isZoomed, setIsZoomed] = useState(false);
 
-  if (!card || !card.imageUrl) {
-    return null;
-  }
-
-  const handleClick = () => {
-    if (zoomable) {
-      setIsZoomed(true);
+    if (!card || !card.imageUrl) {
+        return null;
     }
-  };
 
-  const handleClose = () => setIsZoomed(false);
+    const handleClick = () => {
+        if (zoomable) {
+            setIsZoomed(true);
+        }
+    };
 
-  return (
-      <>
-        <div
-            className="full-card-background"
-            onClick={handleClick}
-            style={{ backgroundImage: `url(${card.imageUrl})` }}
-            title={zoomable ? 'Click to enlarge' : card.name}
-        >
-          <div className="card-overlay">
-            <h2>{card.name}</h2>
-          </div>
-        </div>
+    const handleClose = () => setIsZoomed(false);
 
-        {zoomable && isZoomed && (
-            <CardDetailModal card={card} onClose={handleClose} />
-        )}
-      </>
-  );
+    return (
+        <>
+            <div
+                className="yugioh-card"
+                onClick={handleClick}
+                style={{ cursor: zoomable ? 'pointer' : 'default' }}
+                title={zoomable ? 'Click to view details' : card.name}
+            >
+                <div className="card-image-wrapper">
+                    <img
+                        src={card.imageUrl}
+                        alt={card.name}
+                        className="card-image"
+                        loading="lazy"
+                    />
+                    {zoomable && (
+                        <div className="card-hover-overlay">
+                            <span className="card-name">{card.name}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {zoomable && isZoomed && (
+                <CardDetailModal card={card} onClose={handleClose} />
+            )}
+        </>
+    );
 };
 
 export default YuGiOhCard;

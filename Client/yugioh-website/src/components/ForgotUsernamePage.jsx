@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Loader2, Mail, ArrowLeft, CheckCircle, User } from 'lucide-react';
+import { Disc, Loader2, Mail, ArrowLeft, CheckCircle, User } from 'lucide-react';
 
 const ForgotUsernamePage = () => {
     const [email, setEmail] = useState('');
@@ -50,9 +50,9 @@ const ForgotUsernamePage = () => {
 
                     <div className="auth-footer">
                         <p>
-                            <Link to="/login">
-                                <ArrowLeft size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />
-                                Back to Login
+                            <Link to="/login" className="back-link">
+                                <ArrowLeft size={16} />
+                                <span>Back to Login</span>
                             </Link>
                         </p>
                     </div>
@@ -101,7 +101,7 @@ const ForgotUsernamePage = () => {
                         {isLoading ? (
                             <>
                                 <Loader2 className="spin" size={20} />
-                                Sending...
+                                <span>Sending...</span>
                             </>
                         ) : (
                             'Send Username'

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Sparkles, Loader2, Eye, EyeOff, Check, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Disc, Loader2, Eye, EyeOff, Check, X, CheckCircle, AlertCircle, Lock } from 'lucide-react';
 
 const ResetPasswordPage = () => {
     const navigate = useNavigate();
@@ -130,7 +130,7 @@ const ResetPasswordPage = () => {
                         <p>Please request a new password reset link.</p>
                     </div>
 
-                    <Link to="/forgot-password" className="auth-submit-btn" style={{ textDecoration: 'none' }}>
+                    <Link to="/forgot-password" className="auth-submit-btn" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'center' }}>
                         Request New Reset Link
                     </Link>
 
@@ -180,7 +180,7 @@ const ResetPasswordPage = () => {
                 <div className="auth-header">
                     <Link to="/" className="auth-logo-link">
                         <div className="auth-logo">
-                            <Sparkles size={32} />
+                            <Disc size={32} />
                         </div>
                     </Link>
                     <h1>Reset Password</h1>
@@ -192,7 +192,8 @@ const ResetPasswordPage = () => {
 
                     <div className="form-group">
                         <label htmlFor="password">New Password</label>
-                        <div className="password-input-wrapper">
+                        <div className="input-with-icon password-input-wrapper">
+                            <Lock size={18} className="input-icon" />
                             <input
                                 type={showPassword ? 'text' : 'password'}
                                 id="password"
@@ -207,6 +208,7 @@ const ResetPasswordPage = () => {
                                 type="button"
                                 className="password-toggle"
                                 onClick={() => setShowPassword(!showPassword)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
@@ -225,16 +227,19 @@ const ResetPasswordPage = () => {
 
                     <div className="form-group">
                         <label htmlFor="confirmPassword">Confirm New Password</label>
-                        <input
-                            type={showPassword ? 'text' : 'password'}
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            placeholder="Confirm new password"
-                            required
-                            disabled={isLoading}
-                        />
+                        <div className="input-with-icon password-input-wrapper">
+                            <Lock size={18} className="input-icon" />
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                placeholder="Confirm new password"
+                                required
+                                disabled={isLoading}
+                            />
+                        </div>
                         {formData.confirmPassword && !passwordsMatch && (
                             <span className="field-error">Passwords do not match</span>
                         )}
@@ -248,7 +253,7 @@ const ResetPasswordPage = () => {
                         {isLoading ? (
                             <>
                                 <Loader2 className="spin" size={20} />
-                                Resetting...
+                                <span>Resetting...</span>
                             </>
                         ) : (
                             'Reset Password'

@@ -9,8 +9,10 @@ const ProtectedRoute = ({ children }) => {
     if (loading) {
         return (
             <div className="loading-page">
-                <Loader2 className="spin" size={40} />
-                <p>Loading...</p>
+                <div className="loading-container">
+                    <Loader2 className="spin" size={40} />
+                    <p>Loading...</p>
+                </div>
             </div>
         );
     }

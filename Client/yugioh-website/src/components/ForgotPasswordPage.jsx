@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Sparkles, Loader2, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Disc, Loader2, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 
 const ForgotPasswordPage = () => {
     const [email, setEmail] = useState('');
@@ -51,9 +51,9 @@ const ForgotPasswordPage = () => {
 
                     <div className="auth-footer">
                         <p>
-                            <Link to="/login">
-                                <ArrowLeft size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />
-                                Back to Login
+                            <Link to="/login" className="back-link">
+                                <ArrowLeft size={16} />
+                                <span>Back to Login</span>
                             </Link>
                         </p>
                     </div>
@@ -68,7 +68,7 @@ const ForgotPasswordPage = () => {
                 <div className="auth-header">
                     <Link to="/" className="auth-logo-link">
                         <div className="auth-logo">
-                            <Sparkles size={32} />
+                            <Disc size={32} />
                         </div>
                     </Link>
                     <h1>Forgot Password?</h1>
@@ -102,7 +102,7 @@ const ForgotPasswordPage = () => {
                         {isLoading ? (
                             <>
                                 <Loader2 className="spin" size={20} />
-                                Sending...
+                                <span>Sending...</span>
                             </>
                         ) : (
                             'Send Reset Link'
