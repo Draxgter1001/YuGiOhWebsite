@@ -1,5 +1,7 @@
 package taf.yugioh.scanner.security;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +19,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.annotation.PostConstruct;
 import java.util.Arrays;
 import java.util.List;
 
@@ -24,14 +27,23 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
+
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Autowired
     private RateLimitFilter rateLimitFilter;
 
-    @Value("${app.cors.allowed-origins}")
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
+
+    @PostConstruct
+    public void init() {
+        logger.info("===========================================");
+        logger.info("CORS Allowed Origins: {}", allowedOrigins);
+        logger.info("===========================================");
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -40,6 +52,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Allow CORS preflight requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/cards/**").permitAll()
@@ -74,11 +88,13 @@ public class SecurityConfig {
                 String trimmed = origin.trim();
                 if (!trimmed.isEmpty()) {
                     configuration.addAllowedOrigin(trimmed);
+                    logger.info("Added CORS allowed origin: {}", trimmed);
                 }
             }
         } else {
             // Fallback for local development only
             configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+            logger.warn("No CORS origins configured, using localhost:3000");
         }
 
         // Allowed HTTP methods
@@ -92,14 +108,18 @@ public class SecurityConfig {
                 "Content-Type",
                 "X-Requested-With",
                 "Accept",
-                "Origin"
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
         ));
 
         // Headers exposed to the client
         configuration.setExposedHeaders(Arrays.asList(
                 "Authorization",
                 "X-RateLimit-Limit",
-                "X-RateLimit-Remaining"
+                "X-RateLimit-Remaining",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials"
         ));
 
         // Allow credentials (cookies, authorization headers)
@@ -110,6 +130,8 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
+        logger.info("CORS configuration initialized");
         return source;
     }
 }

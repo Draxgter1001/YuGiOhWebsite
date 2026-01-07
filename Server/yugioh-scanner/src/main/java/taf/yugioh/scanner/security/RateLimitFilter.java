@@ -37,6 +37,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        // IMPORTANT: Skip CORS preflight requests (OPTIONS)
+        // These must pass through for CORS to work properly
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String clientIp = getClientIP(request);
         String path = request.getRequestURI();
 
