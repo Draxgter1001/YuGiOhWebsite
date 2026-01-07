@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import {
@@ -47,15 +47,6 @@ const DeckBuilderPage = () => {
     const [selectedDeckType, setSelectedDeckType] = useState('MAIN');
     const [isAddingCard, setIsAddingCard] = useState(false);
 
-    // Autocomplete state
-    const [suggestions, setSuggestions] = useState([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(-1);
-    const debounceRef = useRef(null);
-    const dropdownRef = useRef(null);
-    const inputRef = useRef(null);
-
     // Scanner state
     const [isScanning, setIsScanning] = useState(false);
     const [scanError, setScanError] = useState('');
@@ -69,23 +60,6 @@ const DeckBuilderPage = () => {
     useEffect(() => {
         fetchDeck();
     }, [deckId]);
-
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (
-                dropdownRef.current &&
-                !dropdownRef.current.contains(e.target) &&
-                inputRef.current &&
-                !inputRef.current.contains(e.target)
-            ) {
-                setShowSuggestions(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     const fetchDeck = async () => {
         try {
@@ -123,108 +97,22 @@ const DeckBuilderPage = () => {
         }
     };
 
-    // Fetch autocomplete suggestions
-    const fetchSuggestions = useCallback(async (query) => {
-        if (query.length < 2) {
-            setSuggestions([]);
-            setShowSuggestions(false);
-            return;
-        }
-
-        setIsLoadingSuggestions(true);
-        try {
-            const results = await apiService.autocompleteCard(query);
-            setSuggestions(results || []);
-            setShowSuggestions(true);
-        } catch (err) {
-            setSuggestions([]);
-        } finally {
-            setIsLoadingSuggestions(false);
-        }
-    }, []);
-
-    // Handle search input change with debounce
-    const handleSearchInputChange = (e) => {
-        const value = e.target.value;
-        setSearchTerm(value);
-        setSearchError('');
-        setSelectedIndex(-1);
-
-        // Clear previous debounce
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
-        }
-
-        // Debounce autocomplete
-        debounceRef.current = setTimeout(() => {
-            fetchSuggestions(value);
-        }, 300);
-    };
-
-    // Handle selecting a suggestion
-    const handleSelectSuggestion = (suggestion) => {
-        setSearchTerm(suggestion.name);
-        setShowSuggestions(false);
-        setSelectedIndex(-1);
-        // Set the card as the search result
-        setSearchResult(suggestion);
-        setSuggestions([]);
-    };
-
-    // Handle keyboard navigation in autocomplete
-    const handleSearchKeyDown = (e) => {
-        if (!showSuggestions || suggestions.length === 0) {
-            if (e.key === 'Enter') {
-                handleSearchCard();
-            }
-            return;
-        }
-
-        switch (e.key) {
-            case 'ArrowDown':
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev < suggestions.length - 1 ? prev + 1 : prev
-                );
-                break;
-            case 'ArrowUp':
-                e.preventDefault();
-                setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
-                break;
-            case 'Enter':
-                e.preventDefault();
-                if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-                    handleSelectSuggestion(suggestions[selectedIndex]);
-                } else {
-                    handleSearchCard();
-                }
-                break;
-            case 'Escape':
-                setShowSuggestions(false);
-                setSelectedIndex(-1);
-                break;
-            default:
-                break;
-        }
-    };
-
     const handleSearchCard = async () => {
         if (!searchTerm.trim()) return;
 
         setIsSearching(true);
         setSearchError('');
         setSearchResult(null);
-        setShowSuggestions(false);
 
         try {
             const card = await apiService.searchCard(searchTerm);
             if (card) {
                 setSearchResult(card);
             } else {
-                setSearchError('Card not found. Try typing to see suggestions.');
+                setSearchError('Card not found. Please use exact name.');
             }
         } catch (err) {
-            setSearchError('Card not found. Try typing to see suggestions.');
+            setSearchError('Card not found. Please use exact name.');
         } finally {
             setIsSearching(false);
         }
@@ -312,8 +200,6 @@ const DeckBuilderPage = () => {
         setSearchResult(null);
         setSearchError('');
         setScanError('');
-        setSuggestions([]);
-        setShowSuggestions(false);
         setSelectedDeckType('MAIN');
     };
 
@@ -323,12 +209,6 @@ const DeckBuilderPage = () => {
         setSearchTerm('');
         setSearchError('');
         setScanError('');
-        setSuggestions([]);
-        setShowSuggestions(false);
-        // Clear debounce
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
-        }
     };
 
     // Group cards by their info
@@ -575,69 +455,20 @@ const DeckBuilderPage = () => {
                             </button>
                         </div>
 
-                        {/* Search Mode with Autocomplete */}
+                        {/* Search Mode */}
                         {addMode === 'search' && (
-                            <div className="search-row-wrapper">
-                                <div className="search-row">
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={handleSearchInputChange}
-                                        onKeyDown={handleSearchKeyDown}
-                                        onFocus={() => {
-                                            if (suggestions.length > 0) {
-                                                setShowSuggestions(true);
-                                            }
-                                        }}
-                                        placeholder="Start typing card name..."
-                                        disabled={isSearching}
-                                        autoComplete="off"
-                                    />
-                                    <button onClick={handleSearchCard} disabled={isSearching || !searchTerm.trim()}>
-                                        {isSearching ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
-                                    </button>
-                                </div>
-
-                                {/* Autocomplete Dropdown */}
-                                {showSuggestions && (
-                                    <div ref={dropdownRef} className="modal-autocomplete-dropdown">
-                                        {isLoadingSuggestions ? (
-                                            <div className="autocomplete-loading">
-                                                <Loader2 className="spin" size={16} />
-                                                <span>Searching...</span>
-                                            </div>
-                                        ) : suggestions.length > 0 ? (
-                                            suggestions.map((suggestion, index) => (
-                                                <div
-                                                    key={suggestion.id}
-                                                    className={`autocomplete-item ${index === selectedIndex ? 'selected' : ''}`}
-                                                    onClick={() => handleSelectSuggestion(suggestion)}
-                                                    onMouseEnter={() => setSelectedIndex(index)}
-                                                >
-                                                    {suggestion.imageUrlSmall && (
-                                                        <img
-                                                            src={suggestion.imageUrlSmall}
-                                                            alt=""
-                                                            className="autocomplete-thumb"
-                                                            loading="lazy"
-                                                        />
-                                                    )}
-                                                    <div className="autocomplete-info">
-                                                        <div className="autocomplete-name">{suggestion.name}</div>
-                                                        {suggestion.type && (
-                                                            <div className="autocomplete-type">{suggestion.type}</div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : searchTerm.length >= 2 ? (
-                                            <div className="autocomplete-empty">No cards found</div>
-                                        ) : null}
-                                    </div>
-                                )}
-
-                                <p className="search-hint">Type at least 2 characters to see suggestions</p>
+                            <div className="search-row">
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSearchCard()}
+                                    placeholder="Search card by exact name..."
+                                    disabled={isSearching}
+                                />
+                                <button onClick={handleSearchCard} disabled={isSearching || !searchTerm.trim()}>
+                                    {isSearching ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
+                                </button>
                             </div>
                         )}
 
