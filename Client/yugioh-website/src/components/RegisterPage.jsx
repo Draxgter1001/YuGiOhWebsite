@@ -15,6 +15,7 @@ const RegisterPage = () => {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
 
     // Password requirements
@@ -23,7 +24,7 @@ const RegisterPage = () => {
         uppercase: /[A-Z]/.test(formData.password),
         lowercase: /[a-z]/.test(formData.password),
         number: /[0-9]/.test(formData.password),
-        special: /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),
+        special: /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;'`~]/.test(formData.password),
     };
 
     const isPasswordValid = Object.values(passwordChecks).every(Boolean);
@@ -32,11 +33,13 @@ const RegisterPage = () => {
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
         setError('');
+        setFieldErrors({});
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setFieldErrors({});
 
         if (!isPasswordValid) {
             setError('Please meet all password requirements');
@@ -60,7 +63,17 @@ const RegisterPage = () => {
             if (result.success) {
                 navigate('/');
             } else {
-                setError(result.message || 'Registration failed. Please try again.');
+                // Check if there are field-specific validation errors
+                if (result.data && typeof result.data === 'object') {
+                    setFieldErrors(result.data);
+                    // Create a user-friendly error message
+                    const errorMessages = Object.entries(result.data)
+                        .map(([field, msg]) => `${field}: ${msg}`)
+                        .join('\n');
+                    setError(errorMessages || result.message || 'Registration failed');
+                } else {
+                    setError(result.message || 'Registration failed. Please try again.');
+                }
             }
         } catch (err) {
             setError('An error occurred. Please try again.');
@@ -90,7 +103,13 @@ const RegisterPage = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="auth-form">
-                    {error && <div className="auth-error">{error}</div>}
+                    {error && (
+                        <div className="auth-error">
+                            {error.split('\n').map((line, i) => (
+                                <div key={i}>{line}</div>
+                            ))}
+                        </div>
+                    )}
 
                     <div className="form-group">
                         <label htmlFor="username">Username</label>
@@ -109,6 +128,10 @@ const RegisterPage = () => {
                                 maxLength={20}
                             />
                         </div>
+                        {fieldErrors.username && (
+                            <span className="field-error">{fieldErrors.username}</span>
+                        )}
+                        <span className="field-hint">Letters, numbers, and underscores only</span>
                     </div>
 
                     <div className="form-group">
@@ -126,6 +149,9 @@ const RegisterPage = () => {
                                 disabled={isLoading}
                             />
                         </div>
+                        {fieldErrors.email && (
+                            <span className="field-error">{fieldErrors.email}</span>
+                        )}
                     </div>
 
                     <div className="form-group">
@@ -153,6 +179,9 @@ const RegisterPage = () => {
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
                         </div>
+                        {fieldErrors.password && (
+                            <span className="field-error">{fieldErrors.password}</span>
+                        )}
 
                         {formData.password && (
                             <div className="password-requirements">
