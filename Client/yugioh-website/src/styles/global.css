@@ -2442,3 +2442,31 @@ img {
 .scanner-pattern {
   display: contents;
 }
+
+/* Field hints for forms */
+.field-hint {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+}
+
+/* Ensure auth-error can display multiple lines */
+.auth-error {
+  padding: var(--space-md);
+  background: rgba(198, 40, 40, 0.1);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  margin-bottom: var(--space-md);
+  white-space: pre-wrap;
+}
+
+.auth-error div {
+  margin-bottom: var(--space-xs);
+}
+
+.auth-error div:last-child {
+  margin-bottom: 0;
+}
