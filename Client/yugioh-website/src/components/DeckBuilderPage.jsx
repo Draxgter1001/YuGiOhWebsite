@@ -16,8 +16,10 @@ import {
     X,
     Upload,
     Camera,
+    DollarSign,
 } from 'lucide-react';
 import Header from '../components/Header';
+import { DeckPriceDisplay, CompactPriceDisplay } from './PriceDisplay';
 
 const DeckBuilderPage = () => {
     const { deckId } = useParams();
@@ -51,6 +53,9 @@ const DeckBuilderPage = () => {
 
     // Validation state
     const [validation, setValidation] = useState(null);
+
+    // Price display toggle
+    const [showPrices, setShowPrices] = useState(true);
 
     useEffect(() => {
         fetchDeck();
@@ -354,6 +359,23 @@ const DeckBuilderPage = () => {
                             Validate Deck
                         </button>
                     </div>
+
+                    {/* Deck Total Prices */}
+                    {deck.totalPrices && (
+                        <div className="deck-prices-section">
+                            <div className="deck-prices-header">
+                                <DollarSign size={18} />
+                                <span>Estimated Value</span>
+                                <button
+                                    className="toggle-prices-btn"
+                                    onClick={() => setShowPrices(!showPrices)}
+                                >
+                                    {showPrices ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+                            {showPrices && <DeckPriceDisplay totalPrices={deck.totalPrices} />}
+                        </div>
+                    )}
                 </div>
 
                 {/* Validation Results */}
@@ -390,18 +412,21 @@ const DeckBuilderPage = () => {
                         cards={groupCards(deck.mainDeck)}
                         deckType="MAIN"
                         onRemove={handleRemoveCard}
+                        showPrices={showPrices}
                     />
                     <DeckSection
                         title="Extra Deck"
                         cards={groupCards(deck.extraDeck)}
                         deckType="EXTRA"
                         onRemove={handleRemoveCard}
+                        showPrices={showPrices}
                     />
                     <DeckSection
                         title="Side Deck"
                         cards={groupCards(deck.sideDeck)}
                         deckType="SIDE"
                         onRemove={handleRemoveCard}
+                        showPrices={showPrices}
                     />
                 </div>
             </main>
@@ -486,6 +511,20 @@ const DeckBuilderPage = () => {
                                 <div className="card-info">
                                     <h4>{searchResult.name}</h4>
                                     <p>{searchResult.type}</p>
+                                    {searchResult.prices && (
+                                        <div className="result-card-price">
+                                            {searchResult.prices.tcgplayerPrice && searchResult.prices.tcgplayerPrice !== '0' && (
+                                                <span className="price-tag tcgplayer">
+                                                    ${searchResult.prices.tcgplayerPrice}
+                                                </span>
+                                            )}
+                                            {searchResult.prices.cardmarketPrice && searchResult.prices.cardmarketPrice !== '0' && (
+                                                <span className="price-tag cardmarket">
+                                                    €{searchResult.prices.cardmarketPrice}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -524,8 +563,8 @@ const DeckBuilderPage = () => {
     );
 };
 
-// Deck Section Component
-const DeckSection = ({ title, cards, deckType, onRemove }) => {
+// Deck Section Component with price display
+const DeckSection = ({ title, cards, deckType, onRemove, showPrices }) => {
     if (!cards || cards.length === 0) {
         return (
             <div className="deck-section empty">
@@ -541,8 +580,15 @@ const DeckSection = ({ title, cards, deckType, onRemove }) => {
             <div className="cards-grid">
                 {cards.map((card) => (
                     <div key={card.cardId} className="deck-card-item">
-                        <img src={card.imageUrl} alt={card.name} />
+                        <img src={card.imageUrl} alt={card.cardName || card.name} />
                         <div className="card-quantity">{card.quantity}x</div>
+                        {showPrices && card.prices && (
+                            <CompactPriceDisplay
+                                prices={card.prices}
+                                cardName={card.cardName || card.name}
+                                quantity={card.quantity}
+                            />
+                        )}
                         <div className="card-actions">
                             <button
                                 className="remove-one"
@@ -559,7 +605,7 @@ const DeckSection = ({ title, cards, deckType, onRemove }) => {
                                 <Trash2 size={14} />
                             </button>
                         </div>
-                        <div className="card-name-tooltip">{card.name}</div>
+                        <div className="card-name-tooltip">{card.cardName || card.name}</div>
                     </div>
                 ))}
             </div>
