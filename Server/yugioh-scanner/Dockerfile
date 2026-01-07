@@ -11,7 +11,10 @@ FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+
+# FIX: Convert Windows line endings (CRLF) to Unix (LF) and make executable
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
+
 RUN mkdir -p /tmp/yugioh-uploads
 
 CMD ["./entrypoint.sh"]
