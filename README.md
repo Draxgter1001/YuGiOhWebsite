@@ -11,7 +11,7 @@
 
 **A full-stack web application for scanning, identifying, and managing Yu-Gi-Oh! trading cards with real-time market prices and deck building capabilities.**
 
-[Live Demo](#https://yu-gi-oh-website-plum.vercel.app/) • [Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [API Documentation](#-api-documentation)
+[Live Demo](https://yu-gi-oh-website-plum.vercel.app/) • [Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [API Documentation](#-api-documentation)
 
 </div>
 
